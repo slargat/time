@@ -1,7 +1,7 @@
+import { getWeekInfo } from '../../polyfills/getWeekInfo'
 import type { DateInput, DateOptions } from '../types'
 import { toZonedDateTime } from '~/date/helpers'
 import { getDateTimeDefaults } from '~/utils'
-import { getWeekInfo } from '../../polyfills/getWeekInfo'
 
 export interface IsWeekendOptions extends DateOptions {
   locale?: string

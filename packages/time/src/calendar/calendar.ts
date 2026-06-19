@@ -1381,7 +1381,7 @@ export class CalendarCore<
             ({ id: r, label: r } as TResource))
           : r,
       ) || this._resolveEventResources(event)
-    if (!resources?.length) return null
+    if (!resources.length) return null
 
     const resourceIds = resources.map((r) => r.id)
     const startDt = Temporal.PlainDateTime.from(newStart)

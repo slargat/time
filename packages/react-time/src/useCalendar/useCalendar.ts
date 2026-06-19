@@ -9,11 +9,19 @@ import {
 } from 'react'
 import { useStore } from '@tanstack/react-store'
 import { CalendarCore } from '@tanstack/time'
+import {
+  createGetDayColumnProps,
+  createGetResizeHandleProps,
+} from './resizeProps'
+import type {
+  DayColumnProps,
+  ResizeHandleHandlers,
+  ResizeHandleOptions,
+} from './resizeProps'
 import type {
   CalendarApi,
   CalendarCoreOptions,
   DependencyType,
-  RecurrenceEditScope,
   Event,
   EventDateTimeInput,
   EventDependency,
@@ -25,25 +33,17 @@ import type {
 } from '@tanstack/time'
 
 export type { ResizeState } from '@tanstack/time'
+export type {
+  DayColumnProps,
+  ResizeHandleHandlers,
+  ResizeHandleOptions,
+} from './resizeProps'
 
 /**
  * Hook-level resize options. Identical to `ResizeControllerOptions` from core
  * but re-exported under a React-friendly name for backwards compatibility.
  */
 export type ResizeOptions = ResizeControllerOptions
-
-interface ResizeHandleHandlers {
-  onMouseDown: (e: React.MouseEvent) => void
-}
-
-interface ResizeHandleOptions {
-  occurrenceStart?: EventDateTimeInput
-  recurrenceScope?: RecurrenceEditScope
-}
-
-interface DayColumnProps {
-  ref: (element: HTMLElement | null) => void
-}
 
 export interface UseCalendarOptions<
   TResource extends Resource,
@@ -52,12 +52,14 @@ export interface UseCalendarOptions<
   resize?: ResizeOptions
 }
 
-export const useCalendar = <
+export interface UseCalendarReturn<
   TResource extends Resource,
-  TEvent extends Event<TResource> = Event<TResource>,
->(
-  options: UseCalendarOptions<TResource, TEvent>,
-): CalendarApi<TResource, TEvent> & {
+  TEvent extends Event<TResource>,
+> extends CalendarApi<TResource, TEvent> {
+  /** The underlying framework-agnostic calendar engine. Stable across renders. */
+  core: CalendarCore<TResource, TEvent>
+  /** The shared resize interaction controller. Stable across renders. */
+  resizeController: ResizeController<TResource, TEvent>
   isPending: boolean
   resizeState: ResizeState
   getResizeHandleProps: (
@@ -68,7 +70,14 @@ export const useCalendar = <
     options?: ResizeHandleOptions,
   ) => ResizeHandleHandlers
   getDayColumnProps: (dayDate: string) => DayColumnProps
-} => {
+}
+
+export const useCalendar = <
+  TResource extends Resource,
+  TEvent extends Event<TResource> = Event<TResource>,
+>(
+  options: UseCalendarOptions<TResource, TEvent>,
+): UseCalendarReturn<TResource, TEvent> => {
   const { resize, ...calendarOptions } = options
 
   const [calendarCore] = useState(
@@ -107,58 +116,18 @@ export const useCalendar = <
   )
   const dayColumnPropsCacheRef = useRef(new Map<string, DayColumnProps>())
 
-  const getResizeHandleProps = useCallback(
-    (
-      eventId: string,
-      edge: ResizeEdge,
-      originalStart: string,
-      originalEnd: string,
-      handleOptions?: ResizeHandleOptions,
-    ): ResizeHandleHandlers => {
-      const key = `${eventId}|${edge}|${originalStart}|${originalEnd}|${handleOptions?.occurrenceStart ?? ''}|${handleOptions?.recurrenceScope ?? ''}`
-      const cache = resizeHandlePropsCacheRef.current
-      const cached = cache.get(key)
-      if (cached) return cached
-
-      const handlers: ResizeHandleHandlers = {
-        onMouseDown: (e: React.MouseEvent) => {
-          const started = resizeController.start({
-            eventId,
-            edge,
-            originalStart,
-            originalEnd,
-            occurrenceStart: handleOptions?.occurrenceStart,
-            recurrenceScope: handleOptions?.recurrenceScope,
-            clientX: e.clientX,
-            clientY: e.clientY,
-            target: e.target as HTMLElement | null,
-          })
-          if (!started) return
-
-          e.preventDefault()
-          e.stopPropagation()
-        },
-      }
-
-      cache.set(key, handlers)
-      return handlers
-    },
+  const getResizeHandleProps = useMemo(
+    () =>
+      createGetResizeHandleProps(
+        resizeController,
+        resizeHandlePropsCacheRef.current,
+      ),
     [resizeController],
   )
 
-  const getDayColumnProps = useCallback(
-    (dayDate: string): DayColumnProps => {
-      const cache = dayColumnPropsCacheRef.current
-      const cached = cache.get(dayDate)
-      if (cached) return cached
-      const props: DayColumnProps = {
-        ref: (element: HTMLElement | null) => {
-          resizeController.registerDayColumn(dayDate, element)
-        },
-      }
-      cache.set(dayDate, props)
-      return props
-    },
+  const getDayColumnProps = useMemo(
+    () =>
+      createGetDayColumnProps(resizeController, dayColumnPropsCacheRef.current),
     [resizeController],
   )
 
@@ -396,6 +365,8 @@ export const useCalendar = <
   )
 
   return {
+    core: calendarCore,
+    resizeController,
     activeDate: state.activeDate.toString(),
     currentPeriod: state.currentPeriod.toString(),
     viewMode: state.viewMode,

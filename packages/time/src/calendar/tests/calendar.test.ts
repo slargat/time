@@ -5543,7 +5543,7 @@ describe('CalendarCore', () => {
       })
 
       expect(result.blocked).toBe(true)
-      expect(result.error?.conflicts?.[0]?.resourceDetails[0]?.reason).toBe(
+      expect(result.error?.conflicts[0]?.resourceDetails[0]?.reason).toBe(
         'capacity',
       )
     })
