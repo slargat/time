@@ -60,11 +60,8 @@ export function useMonthBuffer({
     const newEnd = calendar.days[calendar.days.length - 1].isoDate
     bufferRef.current = {
       start:
-        newStart < bufferRef.current.start
-          ? newStart
-          : bufferRef.current.start,
-      end:
-        newEnd > bufferRef.current.end ? newEnd : bufferRef.current.end,
+        newStart < bufferRef.current.start ? newStart : bufferRef.current.start,
+      end: newEnd > bufferRef.current.end ? newEnd : bufferRef.current.end,
     }
 
     if (direction === 'backward') {
@@ -97,27 +94,34 @@ export function useMonthBuffer({
       unit: 'week',
       fillMissingDays: true,
     })
-  }, [bufferVersion, calendar.days, calendar.getDaysInRange, calendar.groupDaysBy])
+  }, [
+    bufferVersion,
+    calendar.days,
+    calendar.getDaysInRange,
+    calendar.groupDaysBy,
+  ])
 
-  const { startSentinelRef: topSentinelRef, endSentinelRef: bottomSentinelRef } =
-    useInfiniteScroll({
-      root: scrollRef,
-      rootMargin: '120px 0px',
-      cooldownMs: 1000,
-      onReachStart: () => {
-        const el = scrollRef.current
-        if (!el || el.scrollHeight <= el.clientHeight) return
-        if (!calendar.canGoPreviousPeriod() || calendar.isPending) return
-        navDirectionRef.current = 'backward'
-        calendar.goToPreviousPeriod()
-      },
-      onReachEnd: () => {
-        if (!calendar.canGoNextPeriod() || calendar.isPending) return
-        navDirectionRef.current = 'forward'
-        calendar.goToNextPeriod()
-      },
-      disabled: isScheduleView,
-    })
+  const {
+    startSentinelRef: topSentinelRef,
+    endSentinelRef: bottomSentinelRef,
+  } = useInfiniteScroll({
+    root: scrollRef,
+    rootMargin: '120px 0px',
+    cooldownMs: 1000,
+    onReachStart: () => {
+      const el = scrollRef.current
+      if (!el || el.scrollHeight <= el.clientHeight) return
+      if (!calendar.canGoPreviousPeriod() || calendar.isPending) return
+      navDirectionRef.current = 'backward'
+      calendar.goToPreviousPeriod()
+    },
+    onReachEnd: () => {
+      if (!calendar.canGoNextPeriod() || calendar.isPending) return
+      navDirectionRef.current = 'forward'
+      calendar.goToNextPeriod()
+    },
+    disabled: isScheduleView,
+  })
 
   return { scrollRef, topSentinelRef, bottomSentinelRef, weekGroups }
 }
