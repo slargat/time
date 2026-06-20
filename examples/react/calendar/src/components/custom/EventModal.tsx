@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { RecurrenceFrequency, Resource } from '@tanstack/time'
+import type { EventFormData } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -9,7 +10,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { EventFormData } from '@/types'
 
 interface EventModalProps {
   isOpen: boolean

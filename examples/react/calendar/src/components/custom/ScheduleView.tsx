@@ -2,8 +2,8 @@ import {
   calculateGhostPreviewStyle,
   calculateSegmentResizePreview,
   formatEventTimeRange,
-  useCalendar,
 } from '@tanstack/react-time'
+import type { useCalendar } from '@tanstack/react-time'
 import type { Day, Event, Resource } from '@tanstack/time'
 import {
   ContextMenu,
