@@ -56,6 +56,33 @@ const getFullEventTimes = (
   }
 }
 
+/** Framework-neutral structural attributes for a rendered event. */
+export interface EventAttributes {
+  'data-event-id': string
+  'data-all-day': boolean
+  'data-split': boolean
+  'data-resource'?: string
+}
+
+/**
+ * Builds the structural `data-*` attributes for a single event (or split
+ * segment). Pure and framework-agnostic; layout/positioning is computed
+ * separately by {@link getEventProps}.
+ */
+export const buildEventAttributes = (event: Event): EventAttributes => {
+  const isSplit = event._originalStart != null || event._originalEnd != null
+  const firstResource = event.resources?.[0]
+  const resourceId =
+    typeof firstResource === 'string' ? firstResource : firstResource?.id
+
+  return {
+    'data-event-id': event.id,
+    'data-all-day': event.allDay ?? false,
+    'data-split': isSplit,
+    ...(resourceId != null ? { 'data-resource': resourceId } : {}),
+  }
+}
+
 export const getEventProps = (
   eventMap: Map<string, Array<Event>>,
   event: Event,
