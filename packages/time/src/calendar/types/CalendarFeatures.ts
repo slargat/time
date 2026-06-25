@@ -52,6 +52,7 @@ export interface StockCalendarFeatures {
   resizeFeature: CalendarFeature
   timelineFeature: CalendarFeature
   recurrenceFeature: CalendarFeature
+  lazyFetchFeature: CalendarFeature
   historyFeature: CalendarFeature
 }
 

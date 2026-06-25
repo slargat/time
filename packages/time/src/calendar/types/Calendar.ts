@@ -21,6 +21,7 @@ import type {
 import type { Calendar_Crud } from '../features/eventCrudFeature.types'
 import type { Calendar_Timeline } from '../features/timelineFeature.types'
 import type { Calendar_Recurrence } from '../features/recurrenceFeature.types'
+import type { Calendar_LazyFetch } from '../features/lazyFetchFeature.types'
 import type { Calendar_History } from '../features/historyFeature.types'
 import type {
   Calendar_Resize,
@@ -85,6 +86,11 @@ export interface CalendarOptions<
   initialState?: Partial<CalendarStore>
   /** Options for `resizeFeature`'s drag-resize controller. */
   resize?: ResizeControllerOptions
+  /** `lazyFetchFeature`: load events on demand for the visible range. */
+  fetchEvents?: (range: {
+    start: string
+    end: string
+  }) => Promise<Array<TEvent>>
 }
 
 /** The always-present surface: navigation, day derivation, and the store. */
@@ -125,6 +131,7 @@ export interface Calendar_FeatureMap<
   resizeFeature: Calendar_Resize<TResource, TEvent>
   timelineFeature: Calendar_Timeline<TResource, TEvent>
   recurrenceFeature: Calendar_Recurrence<TResource, TEvent>
+  lazyFetchFeature: Calendar_LazyFetch
   historyFeature: Calendar_History
 }
 

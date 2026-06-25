@@ -6,6 +6,7 @@ import { historyFeature } from '../features/historyFeature'
 import { resizeFeature } from '../features/resizeFeature'
 import { timelineFeature } from '../features/timelineFeature'
 import { recurrenceFeature } from '../features/recurrenceFeature'
+import { lazyFetchFeature } from '../features/lazyFetchFeature'
 import { CalendarCore } from '../calendar'
 import type { Day, Event, Resource } from '../types'
 
@@ -283,6 +284,53 @@ describe('feature composition', () => {
     cal.goToNextOccurrence('r')
     expect(cal.store.state.currentPeriod.toString()).toEqual(
       core.store.state.currentPeriod.toString(),
+    )
+  })
+
+  it('lazyFetch merges fetched events and toggles isPending', async () => {
+    const DB: Array<Event> = [
+      {
+        id: 'f1',
+        title: 'F1',
+        start: '2024-03-10T10:00:00',
+        end: '2024-03-10T11:00:00',
+      },
+    ]
+    const fetchEvents = ({ start, end }: { start: string; end: string }) =>
+      Promise.resolve(
+        DB.filter((e) => (e.start as string) >= start && (e.start as string) < end),
+      )
+
+    const cal = constructCalendar({
+      viewMode: { value: 1, unit: 'month' },
+      events: [] as Array<Event>,
+      fetchEvents,
+      timeZone: 'UTC',
+      features: { eventsFeature, lazyFetchFeature },
+    })
+
+    expect(cal.store.state.isPending).toBe(false)
+    const pending = cal.fetchEventsForRange('2024-03-01', '2024-04-01')
+    expect(cal.store.state.isPending).toBe(true)
+    await pending
+    expect(cal.store.state.isPending).toBe(false)
+    expect(cal.getEvents().map((e) => e.id)).toEqual(['f1'])
+    expect(cal.getLoadedRanges()).toHaveLength(1)
+
+    // already-loaded range is a no-op
+    await cal.fetchEventsForRange('2024-03-01', '2024-04-01')
+    expect(cal.getEvents()).toHaveLength(1)
+
+    // parity with CalendarCore
+    const core = new CalendarCore({
+      viewMode: { value: 1, unit: 'month' },
+      events: [],
+      fetchEvents,
+      timeZone: 'UTC',
+    })
+    await core.fetchEventsForRange('2024-03-01', '2024-04-01')
+    expect(cal.getEvents().map((e) => e.id).sort()).toEqual(
+      core.getEvents().map((e) => e.id).sort(),
     )
   })
 
