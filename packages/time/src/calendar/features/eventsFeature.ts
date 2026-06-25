@@ -6,6 +6,7 @@ import { getEventProps as computeEventProps } from '../getEventProps'
 import { getSegmentInfo } from '../getResizeProps'
 import { groupDaysBy as groupDaysByImpl } from '../groupDaysBy'
 import { getTimeSlots as getTimeSlotsImpl } from '../getTimeSlots'
+import { normalizeRecurrenceDateTimeInputs } from '../recurrence'
 import { makeDayNode, makeEventNode } from '../core/nodes'
 import type { Day, Event, Resource } from '../types'
 import type {
@@ -48,38 +49,15 @@ export const eventsFeature: CalendarFeature = {
     const timeZone = calendar.options.timeZone ?? 'UTC'
     const locale = calendar.options.locale!
 
-    const normalizeRecurrence = (
-      rule: NonNullable<TEvent['recurrence']>,
-    ): NonNullable<TEvent['recurrence']> => ({
-      ...rule,
-      exDates: rule.exDates?.map((value) =>
-        typeof value === 'string' && !value.includes('T')
-          ? value
-          : toPlainDateTimeString(value),
-      ),
-      overrides: rule.overrides?.map((override) => ({
-        ...override,
-        originalStart:
-          typeof override.originalStart === 'string' &&
-          !override.originalStart.includes('T')
-            ? override.originalStart
-            : toPlainDateTimeString(override.originalStart),
-        ...(override.start != null
-          ? { start: toPlainDateTimeString(override.start) }
-          : {}),
-        ...(override.end != null
-          ? { end: toPlainDateTimeString(override.end) }
-          : {}),
-      })),
-    })
-
     const normalizeEvent = (event: TEvent): TEvent => {
       const recurrence = event.recurrence
       return {
         ...event,
         start: toPlainDateTimeString(event.start),
         end: toPlainDateTimeString(event.end),
-        ...(recurrence ? { recurrence: normalizeRecurrence(recurrence) } : {}),
+        ...(recurrence
+          ? { recurrence: normalizeRecurrenceDateTimeInputs(recurrence) }
+          : {}),
       }
     }
 

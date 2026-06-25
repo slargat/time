@@ -5,8 +5,9 @@ import { eventCrudFeature } from '../features/eventCrudFeature'
 import { historyFeature } from '../features/historyFeature'
 import { resizeFeature } from '../features/resizeFeature'
 import { timelineFeature } from '../features/timelineFeature'
+import { recurrenceFeature } from '../features/recurrenceFeature'
 import { CalendarCore } from '../calendar'
-import type { Event, Resource } from '../types'
+import type { Day, Event, Resource } from '../types'
 
 const jan15: Event = {
   id: 'a',
@@ -220,6 +221,69 @@ describe('feature composition', () => {
     expect(
       cal.getEventsByResource().get('r1')?.map((e) => e.id).sort(),
     ).toEqual(core.getEventsByResource().get('r1')?.map((e) => e.id).sort())
+  })
+
+  it('matches CalendarCore for recurring edits/removes/nav (recurrence parity)', async () => {
+    const events: Array<Event> = [
+      {
+        id: 'r',
+        title: 'R',
+        start: '2024-01-01T09:00:00',
+        end: '2024-01-01T10:00:00',
+        recurrence: { frequency: 'daily' },
+      },
+    ]
+    const opts = {
+      viewMode: { value: 1, unit: 'month' as const },
+      events,
+      timeZone: 'UTC',
+    }
+    const core = new CalendarCore(opts)
+    const cal = constructCalendar({
+      ...opts,
+      features: { eventsFeature, recurrenceFeature },
+    })
+    core.goToSpecificPeriod('2024-01-15')
+    cal.goToSpecificPeriod('2024-01-15')
+
+    const dump = (days: Array<Day>) =>
+      days.map(
+        (d) =>
+          [
+            d.isoDate,
+            d.events.map((e) => `${e.id}|${e.title}|${e.start}`).sort(),
+          ] as const,
+      )
+    const same = () => expect(dump(cal.getDays())).toEqual(dump(core.getDaysWithEvents()))
+
+    // edit one occurrence (override)
+    await core.editRecurringEvent('r', { title: 'Edited' }, { scope: 'this', occurrenceStart: '2024-01-10T09:00:00' })
+    await cal.editRecurringEvent('r', { title: 'Edited' }, { scope: 'this', occurrenceStart: '2024-01-10T09:00:00' })
+    same()
+
+    // remove one occurrence (exDate)
+    core.removeRecurringEvent('r', { scope: 'this', occurrenceStart: '2024-01-12T09:00:00' })
+    cal.removeRecurringEvent('r', { scope: 'this', occurrenceStart: '2024-01-12T09:00:00' })
+    same()
+
+    // split the series (this-and-following)
+    await core.editRecurringEvent('r', { title: 'Tail' }, { scope: 'thisAndFollowing', occurrenceStart: '2024-01-20T09:00:00' })
+    await cal.editRecurringEvent('r', { title: 'Tail' }, { scope: 'thisAndFollowing', occurrenceStart: '2024-01-20T09:00:00' })
+    same()
+
+    // edit whole series
+    await core.editRecurringEvent('r', { title: 'All' }, { scope: 'all' })
+    await cal.editRecurringEvent('r', { title: 'All' }, { scope: 'all' })
+    same()
+
+    // occurrence navigation lands on the same period
+    core.goToSpecificPeriod('2024-01-15')
+    cal.goToSpecificPeriod('2024-01-15')
+    core.goToNextOccurrence('r')
+    cal.goToNextOccurrence('r')
+    expect(cal.store.state.currentPeriod.toString()).toEqual(
+      core.store.state.currentPeriod.toString(),
+    )
   })
 
   it('crud mutates the shared map and feeds history undo/redo', async () => {

@@ -72,7 +72,14 @@ export const resizeFeature: CalendarFeature = {
         targetDayDate: options.targetDayDate,
       }),
       commitUpdate,
-      editRecurringEvent: (eventId, updates) => {
+      editRecurringEvent: (eventId, updates, options) => {
+        // Prefer the recurrence feature's scoped edit when registered;
+        // otherwise fall back to a single edit. (The broad internal type lists
+        // editRecurringEvent as always-present, so read it as optional.)
+        const editRecurring = calendar.editRecurringEvent as
+          | typeof calendar.editRecurringEvent
+          | undefined
+        if (editRecurring) return editRecurring(eventId, updates, options)
         commitUpdate(eventId, updates)
         return Promise.resolve({ success: true })
       },
