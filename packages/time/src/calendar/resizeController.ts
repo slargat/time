@@ -4,14 +4,39 @@ import {
   calculateDeltaMinutesFromPixelsHorizontal,
 } from './getResizeProps'
 import type { ResizeConstraints, ResizeEdge } from './getResizeProps'
-import type { CalendarCore } from './calendar'
+import type { ValidateResizeOptions, ValidateResizeResult } from './calendar'
 import type {
   Event,
   EventDateTimeInput,
   RecurrenceEditScope,
   ResizeError,
   Resource,
+  SaveEventResult,
 } from './types'
+
+/**
+ * The narrow slice of the calendar that {@link ResizeController} needs. Both
+ * `CalendarCore` and the feature-composed instance satisfy it, so the
+ * controller no longer depends on a concrete class.
+ */
+export interface ResizeHost<
+  TResource extends Resource,
+  TEvent extends Event<TResource>,
+> {
+  getEvents: () => Array<TEvent>
+  /** Only `.length` (days in the current view) is read. */
+  getDaysWithEvents: () => Array<unknown>
+  validateResize: (options: ValidateResizeOptions) => ValidateResizeResult
+  commitUpdate: (id: string, updates: Partial<Omit<TEvent, 'id'>>) => void
+  editRecurringEvent: (
+    eventId: string,
+    updates: Partial<Omit<TEvent, 'id'>>,
+    options: {
+      scope: RecurrenceEditScope
+      occurrenceStart?: EventDateTimeInput
+    },
+  ) => Promise<SaveEventResult>
+}
 
 export interface ResizeState {
   isResizing: boolean
@@ -96,7 +121,7 @@ export class ResizeController<
   TResource extends Resource,
   TEvent extends Event<TResource>,
 > {
-  private _calendarCore: CalendarCore<TResource, TEvent>
+  private _host: ResizeHost<TResource, TEvent>
   private _options: ResizeControllerOptions
 
   private _state: ResizeState = INITIAL_RESIZE_STATE
@@ -132,10 +157,10 @@ export class ResizeController<
   private _rafId: number | null = null
 
   constructor(
-    calendarCore: CalendarCore<TResource, TEvent>,
+    host: ResizeHost<TResource, TEvent>,
     options: ResizeControllerOptions = {},
   ) {
-    this._calendarCore = calendarCore
+    this._host = host
     this._options = options
 
     this.handleMouseMove = this.handleMouseMove.bind(this)
@@ -208,7 +233,7 @@ export class ResizeController<
       startX: args.clientX,
       originalDayDate: dayDate,
       currentDayDate: dayDate,
-      totalDaysInView: this._calendarCore.getDaysWithEvents().length,
+      totalDaysInView: this._host.getDaysWithEvents().length,
     }
 
     this._refreshDayRects()
@@ -295,7 +320,7 @@ export class ResizeController<
         }
 
         const commitRecurringResize = (scope: RecurrenceEditScope) => {
-          void this._calendarCore
+          void this._host
             .editRecurringEvent(
               currentState.eventId!,
               {
@@ -330,7 +355,7 @@ export class ResizeController<
             commitRecurringResize(original.recurrenceScope ?? 'this')
           }
         } else {
-          this._calendarCore.commitUpdate(currentState.eventId, {
+          this._host.commitUpdate(currentState.eventId, {
             start: currentState.previewStart,
             end: currentState.previewEnd,
           } as Partial<Omit<TEvent, 'id'>>)
@@ -436,7 +461,7 @@ export class ResizeController<
     }
     this._lastProcessed = { delta: snappedDelta, day: targetDayDate }
 
-    const validation = this._calendarCore.validateResize({
+    const validation = this._host.validateResize({
       eventId: id,
       originalStart: start,
       originalEnd: end,
@@ -499,7 +524,7 @@ export class ResizeController<
       now - lastError.timestamp > 500
     if (!shouldEmit) return
 
-    const event = this._calendarCore.getEvents().find((ev) => ev.id === eventId)
+    const event = this._host.getEvents().find((ev) => ev.id === eventId)
     const eventTitle = event?.title ?? 'Unknown Event'
     const conflicts = error.conflicts.length > 0 ? error.conflicts : undefined
 

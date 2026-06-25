@@ -20,16 +20,25 @@ import type {
 } from '../features/eventsFeature.types'
 import type { Calendar_Crud } from '../features/eventCrudFeature.types'
 import type { Calendar_History } from '../features/historyFeature.types'
+import type {
+  Calendar_Resize,
+  DayNode_Resize,
+  EventNode_Resize,
+} from '../features/resizeFeature.types'
+import type { ResizeControllerOptions } from '../resizeController'
 
-/**
- * Maps each feature key to the methods it adds to an event node. (Add
- * `TFeatures` once a node feature must resolve other node types by it.)
- */
+/** Maps each feature key to the methods it adds to an event node. */
 export interface EventNode_FeatureMap<
   TResource extends Resource,
   TEvent extends Event<TResource>,
 > {
   eventsFeature: EventNode_Events<TResource, TEvent>
+  resizeFeature: EventNode_Resize
+}
+
+/** Maps each feature key to the methods it adds to a day node. */
+export interface DayNode_FeatureMap {
+  resizeFeature: DayNode_Resize
 }
 
 /** A single event, plus the node methods contributed by registered features. */
@@ -40,11 +49,8 @@ export type EventNode<
 > = TEvent &
   ExtractFeatureMapTypes<TFeatures, EventNode_FeatureMap<TResource, TEvent>>
 
-/**
- * A day with its events as nodes. (No day-node feature map yet — added when a
- * feature like resize contributes day-node methods.)
- */
-export interface DayNode<
+/** The data shape of a day node (its events are event nodes). */
+export interface DayNode_Core<
   TFeatures extends CalendarFeatures,
   TResource extends Resource,
   TEvent extends Event<TResource>,
@@ -57,6 +63,14 @@ export interface DayNode<
   isInCurrentPeriod: boolean
 }
 
+/** A day node: its data plus the node methods of registered features. */
+export type DayNode<
+  TFeatures extends CalendarFeatures,
+  TResource extends Resource,
+  TEvent extends Event<TResource>,
+> = DayNode_Core<TFeatures, TResource, TEvent> &
+  ExtractFeatureMapTypes<TFeatures, DayNode_FeatureMap>
+
 export interface CalendarOptions<
   TFeatures extends CalendarFeatures,
   TResource extends Resource,
@@ -67,6 +81,8 @@ export interface CalendarOptions<
   events?: Array<TEvent> | null
   resources?: Array<TResource> | null
   initialState?: Partial<CalendarStore>
+  /** Options for `resizeFeature`'s drag-resize controller. */
+  resize?: ResizeControllerOptions
 }
 
 /** The always-present surface: navigation, day derivation, and the store. */
@@ -104,6 +120,7 @@ export interface Calendar_FeatureMap<
 > {
   eventsFeature: Calendar_Events<TResource, TEvent>
   eventCrudFeature: Calendar_Crud<TResource, TEvent>
+  resizeFeature: Calendar_Resize<TResource, TEvent>
   historyFeature: Calendar_History
 }
 

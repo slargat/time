@@ -3,6 +3,7 @@ import { constructCalendar } from '../core/constructCalendar'
 import { eventsFeature } from '../features/eventsFeature'
 import { eventCrudFeature } from '../features/eventCrudFeature'
 import { historyFeature } from '../features/historyFeature'
+import { resizeFeature } from '../features/resizeFeature'
 import { CalendarCore } from '../calendar'
 import type { Event } from '../types'
 
@@ -111,6 +112,45 @@ describe('feature composition', () => {
     expect(typeof node?.getProps).toBe('function')
     expect(node?.getProps().isSplitEvent).toBe(false)
     expect(node?.getSegmentInfo().isSplitEvent).toBe(false)
+  })
+
+  it('resize contributes event/day node methods + the controller', () => {
+    const cal = constructCalendar({
+      viewMode: { value: 1, unit: 'day' },
+      events: [jan15],
+      timeZone: 'UTC',
+      resize: { constraints: { snapToMinutes: 15, minDurationMinutes: 15 } },
+      features: { eventsFeature, resizeFeature, historyFeature },
+    })
+    cal.goToSpecificPeriod('2024-01-15')
+
+    const day = cal.getDays()[0]
+    const node = day?.events[0]
+    // resize node methods present only because resizeFeature is registered
+    expect(typeof node?.getResizeHandleProps).toBe('function')
+    expect(typeof node?.getResizeHandleProps('bottom').onMouseDown).toBe(
+      'function',
+    )
+    expect(typeof day?.getColumnProps).toBe('function')
+    expect(typeof day?.getColumnProps().ref).toBe('function')
+    // events-feature node methods coexist on the same prototype
+    expect(typeof node?.getProps).toBe('function')
+    expect(cal.getResizeState().isResizing).toBe(false)
+  })
+
+  it('omits resize node methods when resizeFeature is absent', () => {
+    const cal = constructCalendar({
+      viewMode: { value: 1, unit: 'day' },
+      events: [jan15],
+      features: { eventsFeature },
+    })
+    cal.goToSpecificPeriod('2024-01-15')
+    const node = cal.getDays()[0]?.events[0]
+    // @ts-expect-error getResizeHandleProps requires resizeFeature
+    node?.getResizeHandleProps
+    expect(
+      (node as unknown as Record<string, unknown>).getResizeHandleProps,
+    ).toBe(undefined)
   })
 
   it('crud mutates the shared map and feeds history undo/redo', async () => {

@@ -1,5 +1,10 @@
 import type { Event, Resource } from '../types'
-import type { Calendar_Internal, DayNode, EventNode } from '../types/Calendar'
+import type {
+  Calendar_Internal,
+  DayNode,
+  DayNode_Core,
+  EventNode,
+} from '../types/Calendar'
 import type { CalendarFeatures } from '../types/CalendarFeatures'
 
 /**
@@ -26,7 +31,7 @@ export function makeDayNode<
   TEvent extends Event<TResource>,
 >(
   calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
-  data: DayNode<TFeatures, TResource, TEvent>,
+  data: DayNode_Core<TFeatures, TResource, TEvent>,
 ): DayNode<TFeatures, TResource, TEvent> {
   return Object.assign(Object.create(calendar._dayPrototype), data)
 }

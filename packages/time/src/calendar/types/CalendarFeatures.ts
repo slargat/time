@@ -49,6 +49,7 @@ export interface CoreCalendarFeatures {
 export interface StockCalendarFeatures {
   eventsFeature: CalendarFeature
   eventCrudFeature: CalendarFeature
+  resizeFeature: CalendarFeature
   historyFeature: CalendarFeature
 }
 
