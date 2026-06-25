@@ -8,7 +8,10 @@ import type {
   ViewMode,
 } from '../types'
 import type { Calendar_Internal } from '../types/Calendar'
-import type { CalendarFeature } from '../types/CalendarFeatures'
+import type {
+  CalendarFeature,
+  CalendarFeatures,
+} from '../types/CalendarFeatures'
 
 /**
  * Concrete `DateCore` used as the calendar's date engine. It owns the store,
@@ -28,11 +31,11 @@ class CoreDateEngine extends DateCore {
  */
 export const coreCalendarFeature: CalendarFeature = {
   constructCalendarApis: <
-    TFeatures extends import('../types/CalendarFeatures').CalendarFeatures,
-    R extends Resource,
-    E extends Event<R>,
+    TFeatures extends CalendarFeatures,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
   >(
-    calendar: Calendar_Internal<TFeatures, R, E>,
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
   ) => {
     const engine = new CoreDateEngine(calendar.options)
     ;(calendar as { _dateCore?: CoreDateEngine })._dateCore = engine
@@ -56,14 +59,14 @@ export const coreCalendarFeature: CalendarFeature = {
       engine.getDaysNames(weekday)
     calendar._getCalendarDays = () => engine.listCalendarDays()
 
-    calendar.getDays = () => buildDayShells<R, E>(calendar)
+    calendar.getDays = () => buildDayShells<TResource, TEvent>(calendar)
   },
 }
 
 /** Bare day grid with empty event arrays; flags match the full builder. */
-function buildDayShells<R extends Resource, E extends Event<R>>(
-  calendar: Calendar_Internal<any, R, E>,
-): Array<Day<R, E>> {
+function buildDayShells<TResource extends Resource, TEvent extends Event<TResource>>(
+  calendar: Calendar_Internal<any, TResource, TEvent>,
+): Array<Day<TResource, TEvent>> {
   const { viewMode, currentPeriod } = calendar.store.state
   const currentMonthRange = Array.from(
     { length: viewMode.value },

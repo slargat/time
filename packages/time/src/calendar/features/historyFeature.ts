@@ -1,6 +1,9 @@
 import type { Event, Resource } from '../types'
 import type { Calendar_Internal } from '../types/Calendar'
-import type { CalendarFeature } from '../types/CalendarFeatures'
+import type {
+  CalendarFeature,
+  CalendarFeatures,
+} from '../types/CalendarFeatures'
 
 /**
  * Undo/redo over event mutations. Snapshots/restores via the public
@@ -12,14 +15,14 @@ import type { CalendarFeature } from '../types/CalendarFeatures'
  */
 export const historyFeature: CalendarFeature = {
   constructCalendarApis: <
-    TFeatures extends import('../types/CalendarFeatures').CalendarFeatures,
-    R extends Resource,
-    E extends Event<R>,
+    TFeatures extends CalendarFeatures,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
   >(
-    calendar: Calendar_Internal<TFeatures, R, E>,
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
   ) => {
-    const undoStack: Array<Array<E>> = []
-    const redoStack: Array<Array<E>> = []
+    const undoStack: Array<Array<TEvent>> = []
+    const redoStack: Array<Array<TEvent>> = []
 
     calendar.undo = () => {
       const restored = undoStack.pop()

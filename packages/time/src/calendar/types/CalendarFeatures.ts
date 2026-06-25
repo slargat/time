@@ -48,6 +48,7 @@ export interface CoreCalendarFeatures {
 /** Opt-in features shipped with `@tanstack/time`. */
 export interface StockCalendarFeatures {
   eventsFeature: CalendarFeature
+  eventCrudFeature: CalendarFeature
   historyFeature: CalendarFeature
 }
 
@@ -71,33 +72,33 @@ export interface CalendarFeatures
  */
 export interface CalendarFeature {
   /** Contribute default state before the store is created. */
-  getInitialState?(state: Partial<CalendarStore>): Partial<CalendarStore>
+  getInitialState?: (state: Partial<CalendarStore>) => Partial<CalendarStore>
   /** Assign this feature's methods onto the calendar singleton. */
-  constructCalendarApis?<
+  constructCalendarApis?: <
     TFeatures extends CalendarFeatures,
-    R extends Resource,
-    E extends Event<R>,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
   >(
-    calendar: Calendar_Internal<TFeatures, R, E>,
-  ): void
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
+  ) => void
   /** Add methods to the shared event-node prototype. */
-  assignEventPrototype?<
+  assignEventPrototype?: <
     TFeatures extends CalendarFeatures,
-    R extends Resource,
-    E extends Event<R>,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
   >(
     prototype: Record<string, any>,
-    calendar: Calendar_Internal<TFeatures, R, E>,
-  ): void
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
+  ) => void
   /** Add methods to the shared day-node prototype. */
-  assignDayPrototype?<
+  assignDayPrototype?: <
     TFeatures extends CalendarFeatures,
-    R extends Resource,
-    E extends Event<R>,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
   >(
     prototype: Record<string, any>,
-    calendar: Calendar_Internal<TFeatures, R, E>,
-  ): void
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
+  ) => void
   /** Tear down listeners/timers when the calendar is destroyed. */
-  destroy?(calendar: Calendar_Internal<any, any, any>): void
+  destroy?: (calendar: Calendar_Internal<any, any, any>) => void
 }

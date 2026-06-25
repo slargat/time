@@ -14,9 +14,9 @@ import type { CalendarFeature, CalendarFeatures } from '../types/CalendarFeature
  */
 export function constructCalendar<
   TFeatures extends CalendarFeatures,
-  R extends Resource = Resource,
-  E extends Event<R> = Event<R>,
->(options: CalendarOptions<TFeatures, R, E>): Calendar<TFeatures, R, E> {
+  TResource extends Resource = Resource,
+  TEvent extends Event<TResource> = Event<TResource>,
+>(options: CalendarOptions<TFeatures, TResource, TEvent>): Calendar<TFeatures, TResource, TEvent> {
   const features: Record<string, CalendarFeature> = {
     coreCalendarFeature,
     ...(options.features as unknown as Record<string, CalendarFeature>),
@@ -27,7 +27,7 @@ export function constructCalendar<
     _eventPrototype: {},
     _dayPrototype: {},
     options,
-  } as unknown as Calendar_Internal<TFeatures, R, E>
+  } as unknown as Calendar_Internal<TFeatures, TResource, TEvent>
 
   const featureList = Object.values(features)
 
@@ -43,5 +43,5 @@ export function constructCalendar<
     feature.assignDayPrototype?.(calendar._dayPrototype, calendar)
   }
 
-  return calendar as unknown as Calendar<TFeatures, R, E>
+  return calendar as unknown as Calendar<TFeatures, TResource, TEvent>
 }
