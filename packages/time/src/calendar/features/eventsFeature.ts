@@ -147,6 +147,18 @@ export const eventsFeature: CalendarFeature = {
       const cached = eventMapCache.get(cacheKey)
       if (cached) return cached
 
+      // Optional availability gate installed by timelineFeature; drops
+      // recurring occurrences landing on unavailable resource time.
+      const checkAvailability = (
+        calendar as unknown as {
+          _checkEventAvailability?: (
+            event: TEvent,
+            start: string,
+            end: string,
+          ) => unknown
+        }
+      )._checkEventAvailability
+
       const map = new Map<string, Array<TEvent>>()
       for (const event of eventMap.values()) {
         if (event.recurrence && windowStart && windowEnd) {
@@ -155,11 +167,23 @@ export const eventsFeature: CalendarFeature = {
             windowStart,
             windowEnd,
           )) {
-            placeEvent(map, occ)
+            const conflict =
+              occ.resources?.length && checkAvailability
+                ? checkAvailability(occ, occ.start as string, occ.end as string)
+                : null
+            if (!conflict) placeEvent(map, occ)
           }
           continue
         }
-        placeEvent(map, event)
+        const masterConflict =
+          event.recurrence && event.resources?.length && checkAvailability
+            ? checkAvailability(
+                event,
+                event.start as string,
+                event.end as string,
+              )
+            : null
+        if (!masterConflict) placeEvent(map, event)
       }
 
       eventMapCache.set(cacheKey, map)

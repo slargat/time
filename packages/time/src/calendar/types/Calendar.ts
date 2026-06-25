@@ -19,6 +19,7 @@ import type {
   EventNode_Events,
 } from '../features/eventsFeature.types'
 import type { Calendar_Crud } from '../features/eventCrudFeature.types'
+import type { Calendar_Timeline } from '../features/timelineFeature.types'
 import type { Calendar_History } from '../features/historyFeature.types'
 import type {
   Calendar_Resize,
@@ -121,6 +122,7 @@ export interface Calendar_FeatureMap<
   eventsFeature: Calendar_Events<TResource, TEvent>
   eventCrudFeature: Calendar_Crud<TResource, TEvent>
   resizeFeature: Calendar_Resize<TResource, TEvent>
+  timelineFeature: Calendar_Timeline<TResource, TEvent>
   historyFeature: Calendar_History
 }
 

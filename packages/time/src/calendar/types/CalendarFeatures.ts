@@ -50,6 +50,7 @@ export interface StockCalendarFeatures {
   eventsFeature: CalendarFeature
   eventCrudFeature: CalendarFeature
   resizeFeature: CalendarFeature
+  timelineFeature: CalendarFeature
   historyFeature: CalendarFeature
 }
 
