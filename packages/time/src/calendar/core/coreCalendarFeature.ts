@@ -1,13 +1,13 @@
 import { Temporal } from '@js-temporal/polyfill'
 import { DateCore } from '../date-core'
+import { makeDayNode } from './nodes'
 import type {
-  Day,
   Event,
   EventDateTimeInput,
   Resource,
   ViewMode,
 } from '../types'
-import type { Calendar_Internal } from '../types/Calendar'
+import type { Calendar_Internal, DayNode } from '../types/Calendar'
 import type {
   CalendarFeature,
   CalendarFeatures,
@@ -59,26 +59,32 @@ export const coreCalendarFeature: CalendarFeature = {
       engine.getDaysNames(weekday)
     calendar._getCalendarDays = () => engine.listCalendarDays()
 
-    calendar.getDays = () => buildDayShells<TResource, TEvent>(calendar)
+    calendar.getDays = () => buildDayShells(calendar)
   },
 }
 
 /** Bare day grid with empty event arrays; flags match the full builder. */
-function buildDayShells<TResource extends Resource, TEvent extends Event<TResource>>(
-  calendar: Calendar_Internal<any, TResource, TEvent>,
-): Array<Day<TResource, TEvent>> {
+function buildDayShells<
+  TFeatures extends CalendarFeatures,
+  TResource extends Resource,
+  TEvent extends Event<TResource>,
+>(
+  calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
+): Array<DayNode<TFeatures, TResource, TEvent>> {
   const { viewMode, currentPeriod } = calendar.store.state
   const currentMonthRange = Array.from(
     { length: viewMode.value },
     (_, i) => currentPeriod.add({ months: i }).month,
   )
   const today = Temporal.Now.plainDateISO()
-  return calendar._getCalendarDays().map((date: Temporal.PlainDate) => ({
-    date,
-    isoDate: date.toString({ calendarName: 'never' }),
-    events: [],
-    allDayEvents: [],
-    isToday: Temporal.PlainDate.compare(date, today) === 0,
-    isInCurrentPeriod: currentMonthRange.includes(date.month),
-  }))
+  return calendar._getCalendarDays().map((date: Temporal.PlainDate) =>
+    makeDayNode(calendar, {
+      date,
+      isoDate: date.toString({ calendarName: 'never' }),
+      events: [],
+      allDayEvents: [],
+      isToday: Temporal.PlainDate.compare(date, today) === 0,
+      isInCurrentPeriod: currentMonthRange.includes(date.month),
+    }),
+  )
 }

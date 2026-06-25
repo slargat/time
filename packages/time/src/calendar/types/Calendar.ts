@@ -3,7 +3,6 @@ import type { Store } from '@tanstack/store'
 import type { DateCoreOptions } from '../date-core'
 import type {
   CalendarStore,
-  Day,
   Event,
   EventDateTimeInput,
   Resource,
@@ -15,9 +14,48 @@ import type {
   ExtractFeatureMapTypes,
 } from './CalendarFeatures'
 import type { UnionToIntersection } from './type-utils'
-import type { Calendar_Events } from '../features/eventsFeature.types'
+import type {
+  Calendar_Events,
+  EventNode_Events,
+} from '../features/eventsFeature.types'
 import type { Calendar_Crud } from '../features/eventCrudFeature.types'
 import type { Calendar_History } from '../features/historyFeature.types'
+
+/**
+ * Maps each feature key to the methods it adds to an event node. (Add
+ * `TFeatures` once a node feature must resolve other node types by it.)
+ */
+export interface EventNode_FeatureMap<
+  TResource extends Resource,
+  TEvent extends Event<TResource>,
+> {
+  eventsFeature: EventNode_Events<TResource, TEvent>
+}
+
+/** A single event, plus the node methods contributed by registered features. */
+export type EventNode<
+  TFeatures extends CalendarFeatures,
+  TResource extends Resource,
+  TEvent extends Event<TResource>,
+> = TEvent &
+  ExtractFeatureMapTypes<TFeatures, EventNode_FeatureMap<TResource, TEvent>>
+
+/**
+ * A day with its events as nodes. (No day-node feature map yet — added when a
+ * feature like resize contributes day-node methods.)
+ */
+export interface DayNode<
+  TFeatures extends CalendarFeatures,
+  TResource extends Resource,
+  TEvent extends Event<TResource>,
+> {
+  date: Temporal.PlainDate
+  isoDate: string
+  events: Array<EventNode<TFeatures, TResource, TEvent>>
+  allDayEvents: Array<EventNode<TFeatures, TResource, TEvent>>
+  isToday: boolean
+  isInCurrentPeriod: boolean
+}
 
 export interface CalendarOptions<
   TFeatures extends CalendarFeatures,
@@ -49,10 +87,11 @@ export interface Calendar_Core<
   getWeekStartsOn: () => number
   getDaysNames: (weekday?: 'long' | 'short') => Array<string>
   /**
-   * Day objects for the current view. Each day's `events`/`allDayEvents` are
-   * populated when `eventsFeature` is registered, otherwise empty.
+   * Day nodes for the current view. Each day's `events`/`allDayEvents` are
+   * populated when `eventsFeature` is registered, otherwise empty. Event/day
+   * nodes carry the methods of whatever node features are registered.
    */
-  getDays: () => Array<Day<TResource, TEvent>>
+  getDays: () => Array<DayNode<TFeatures, TResource, TEvent>>
 }
 
 /**

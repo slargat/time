@@ -6,8 +6,13 @@ import { getEventProps as computeEventProps } from '../getEventProps'
 import { getSegmentInfo } from '../getResizeProps'
 import { groupDaysBy as groupDaysByImpl } from '../groupDaysBy'
 import { getTimeSlots as getTimeSlotsImpl } from '../getTimeSlots'
+import { makeDayNode, makeEventNode } from '../core/nodes'
 import type { Day, Event, Resource } from '../types'
-import type { Calendar_Internal } from '../types/Calendar'
+import type {
+  Calendar_Internal,
+  DayNode,
+  EventNode,
+} from '../types/Calendar'
 import type {
   CalendarFeature,
   CalendarFeatures,
@@ -164,7 +169,7 @@ export const eventsFeature: CalendarFeature = {
     const buildDays = (
       days: Array<Temporal.PlainDate>,
       window?: { start: string; end: string },
-    ): Array<Day<TResource, TEvent>> => {
+    ): Array<DayNode<TFeatures, TResource, TEvent>> => {
       const map = getEventMap(window)
       const { viewMode, currentPeriod } = calendar.store.state
       const currentMonthRange = Array.from(
@@ -175,20 +180,21 @@ export const eventsFeature: CalendarFeature = {
       return days.map((day) => {
         const isoDate = day.toString({ calendarName: 'never' })
         const dailyEvents = map.get(isoDate) ?? []
-        const events: Array<TEvent> = []
-        const allDayEvents: Array<TEvent> = []
+        const events: Array<EventNode<TFeatures, TResource, TEvent>> = []
+        const allDayEvents: Array<EventNode<TFeatures, TResource, TEvent>> = []
         for (const ev of dailyEvents) {
-          if (ev.allDay) allDayEvents.push(ev)
-          else events.push(ev)
+          const node = makeEventNode(calendar, ev)
+          if (ev.allDay) allDayEvents.push(node)
+          else events.push(node)
         }
-        return {
+        return makeDayNode(calendar, {
           date: day,
           isoDate,
           events,
           allDayEvents,
           isToday: Temporal.PlainDate.compare(day, today) === 0,
           isInCurrentPeriod: currentMonthRange.includes(day.month),
-        }
+        })
       })
     }
 
@@ -287,5 +293,21 @@ export const eventsFeature: CalendarFeature = {
     internals._normalizeEvent = normalizeEvent
     internals._getEventMap = getEventMap
     internals._bumpEvents = bumpEvents
+  },
+
+  assignEventPrototype: <
+    TFeatures extends CalendarFeatures,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
+  >(
+    prototype: Record<string, any>,
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
+  ) => {
+    prototype.getProps = function (this: TEvent) {
+      return calendar.getEventProps(this)
+    }
+    prototype.getSegmentInfo = function (this: TEvent) {
+      return calendar.getEventSegmentInfo(this)
+    }
   },
 }

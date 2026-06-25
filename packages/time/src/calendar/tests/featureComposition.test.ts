@@ -97,6 +97,22 @@ describe('feature composition', () => {
     }
   })
 
+  it('returns event nodes carrying eventsFeature prototype methods', () => {
+    const cal = constructCalendar({
+      viewMode: { value: 1, unit: 'month' },
+      events: [jan15],
+      features: { eventsFeature },
+    })
+    cal.goToSpecificPeriod('2024-01-15')
+    const day = cal.getDays().find((d) => d.isoDate === '2024-01-15')
+    const node = day?.events[0]
+    expect(node?.id).toBe('a')
+    // methods live on the shared prototype, bound via `this`
+    expect(typeof node?.getProps).toBe('function')
+    expect(node?.getProps().isSplitEvent).toBe(false)
+    expect(node?.getSegmentInfo().isSplitEvent).toBe(false)
+  })
+
   it('crud mutates the shared map and feeds history undo/redo', async () => {
     const cal = constructCalendar({
       viewMode: { value: 1, unit: 'month' },

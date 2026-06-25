@@ -1,6 +1,17 @@
 import type { SegmentInfo } from '../getResizeProps'
 import type { Day, Event, Resource, TimeSlot } from '../types'
 
+/** Node methods `eventsFeature` adds to every event node. */
+export interface EventNode_Events<
+  TResource extends Resource = Resource,
+  TEvent extends Event<TResource> = Event<TResource>,
+> {
+  /** Positioning props for this event (overlap/lane layout). */
+  getProps: () => EventProps<TEvent>
+  /** Split/occurrence metadata for this event. */
+  getSegmentInfo: () => SegmentInfo
+}
+
 /** Positioning props for a single event (month vs time-grid). */
 export interface EventProps<TEvent extends Event = Event> {
   isSplitEvent: boolean
