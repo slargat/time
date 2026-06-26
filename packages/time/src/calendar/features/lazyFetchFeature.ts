@@ -93,5 +93,27 @@ export const lazyFetchFeature: CalendarFeature = {
     }
 
     calendar.getLoadedRanges = () => loadedRanges
+
+    // Self-drive on navigation so the hook needs no state subscription: when
+    // the period/view changes, load the newly visible range.
+    const navKey = () => {
+      const { currentPeriod, viewMode } = calendar.store.state
+      return `${currentPeriod.toString({ calendarName: 'never' })}|${viewMode.unit}|${viewMode.value}`
+    }
+    let prevNavKey = navKey()
+    const unsubscribe = calendar.store.subscribe(() => {
+      const key = navKey()
+      if (key === prevNavKey) return
+      prevNavKey = key
+      calendar.ensureRangeLoaded()
+    })
+    ;(calendar as { _lazyFetchUnsubscribe?: () => void })._lazyFetchUnsubscribe =
+      unsubscribe
+  },
+
+  destroy: (calendar) => {
+    ;(
+      calendar as { _lazyFetchUnsubscribe?: () => void }
+    )._lazyFetchUnsubscribe?.()
   },
 }

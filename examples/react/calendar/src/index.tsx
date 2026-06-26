@@ -14,6 +14,7 @@ import {
 } from '@tanstack/react-time'
 import ReactDOM from 'react-dom/client'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useStore } from '@tanstack/react-store'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { timeDevtoolsPlugin } from '@tanstack/react-time-devtools'
 import { useInfiniteScroll } from './lib/useInfiniteScroll'
@@ -1183,9 +1184,10 @@ function CalendarView() {
     },
   })
 
-  // Reactive state lives on the store; the hook re-renders on change. `days` is
-  // memoized so its identity is stable across renders (getDays() builds fresh).
-  const state = calendar.store.state
+  // Reactive state lives on the store. `useCalendar` doesn't subscribe — read
+  // it with bare `useStore` (pass a selector to subscribe selectively). `days`
+  // is memoized so its identity is stable across renders (getDays() builds fresh).
+  const state = useStore(calendar.store)
   const viewMode = state.viewMode
   const currentPeriod = state.currentPeriod.toString({ calendarName: 'never' })
   const isPending = state.isPending

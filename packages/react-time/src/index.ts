@@ -19,6 +19,7 @@ export type {
   CalendarOptions,
   CalendarFeatures,
   CalendarFeature,
+  CalendarStore,
   DayNode,
   EventNode,
 } from '@tanstack/time'

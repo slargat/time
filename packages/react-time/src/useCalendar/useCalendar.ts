@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useStore } from '@tanstack/react-store'
 import { constructCalendar } from '@tanstack/time'
 import type {
   Calendar,
@@ -14,17 +13,17 @@ export type { ResizeState } from '@tanstack/time'
 /**
  * React binding for the feature-composed calendar.
  *
- * The instance is built once with {@link constructCalendar} and is stable across
- * renders — every method (and node prototype) is created at construction, so
- * there are no per-render `useCallback`s. Reactivity comes from subscribing to
- * the calendar's store; mutations call `store.setState`, which re-renders.
+ * Builds the instance once with {@link constructCalendar} and returns it stable
+ * across renders — every method/node-prototype is created at construction, so
+ * there are no per-render `useCallback`s. This hook does NOT subscribe to state;
+ * read reactive state with bare `useStore` from `@tanstack/react-store`:
  *
  * @example
- * const calendar = useCalendar({
- *   viewMode: { value: 1, unit: 'month' },
- *   events,
- *   features: { eventsFeature, eventCrudFeature, resizeFeature, historyFeature },
- * })
+ * import { useStore } from '@tanstack/react-store'
+ *
+ * const calendar = useCalendar({ viewMode, events, features })
+ * const viewMode = useStore(calendar.store, (s) => s.viewMode) // selective
+ * const state = useStore(calendar.store)                       // everything
  */
 export function useCalendar<
   TFeatures extends CalendarFeatures,
@@ -35,10 +34,8 @@ export function useCalendar<
 ): Calendar<TFeatures, TResource, TEvent> {
   const [calendar] = useState(() => constructCalendar(options))
 
-  // Re-render on any state change. The instance is stable.
-  const state = useStore(calendar.store)
-
-  // Tear down feature listeners (e.g. resize DOM handlers) on unmount.
+  // Tear down feature listeners (resize DOM handlers, lazyFetch subscription)
+  // on unmount.
   useEffect(() => () => calendar.destroy(), [calendar])
 
   // Keep the resize controller's options in sync (when resizeFeature is on).
@@ -54,10 +51,10 @@ export function useCalendar<
     if (controller && resizeOptions) controller.setOptions(resizeOptions)
   }, [calendar, resizeOptions])
 
-  // Load the visible range on period/view change (when lazyFetchFeature is on).
+  // Initial range load (lazyFetchFeature then self-drives on navigation).
   useEffect(() => {
     ;(calendar as { ensureRangeLoaded?: () => void }).ensureRangeLoaded?.()
-  }, [calendar, state.currentPeriod, state.viewMode])
+  }, [calendar])
 
   return calendar
 }

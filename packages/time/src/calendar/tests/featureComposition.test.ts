@@ -335,6 +335,33 @@ describe('feature composition', () => {
     )
   })
 
+  it('lazyFetch self-loads the range on navigation (store subscription)', async () => {
+    const DB: Array<Event> = [
+      {
+        id: 'm1',
+        title: 'M1',
+        start: '2024-03-15T10:00:00',
+        end: '2024-03-15T11:00:00',
+      },
+    ]
+    const fetchEvents = ({ start, end }: { start: string; end: string }) =>
+      Promise.resolve(
+        DB.filter((e) => (e.start as string) >= start && (e.start as string) < end),
+      )
+    const cal = constructCalendar({
+      viewMode: { value: 1, unit: 'month' },
+      events: [] as Array<Event>,
+      fetchEvents,
+      timeZone: 'UTC',
+      features: { eventsFeature, lazyFetchFeature },
+    })
+
+    // Navigating triggers the feature's own store subscription — no React.
+    cal.goToSpecificPeriod('2024-03-15')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(cal.getEvents().map((e) => e.id)).toEqual(['m1'])
+  })
+
   it('matches CalendarCore for dependency cascade + validation', async () => {
     const events: Array<Event> = [
       { id: 'A', title: 'A', start: '2024-01-10T09:00:00', end: '2024-01-10T10:00:00' },
