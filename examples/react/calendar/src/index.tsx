@@ -1,1123 +1,48 @@
-import {
-  calculateGhostPreviewStyle,
-  calculateSegmentResizePreview,
-  dependenciesFeature,
-  eventCrudFeature,
-  eventsFeature,
-  formatEventTimeRange,
-  historyFeature,
-  lazyFetchFeature,
-  recurrenceFeature,
-  resizeFeature,
-  timelineFeature,
-  useCalendar,
-} from '@tanstack/react-time'
+import { useCalendar } from '@tanstack/react-time'
 import ReactDOM from 'react-dom/client'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { timeDevtoolsPlugin } from '@tanstack/react-time-devtools'
 import { useInfiniteScroll } from './lib/useInfiniteScroll'
+import { calendarFeatures } from './lib/calendar'
+import { formatDateToISO } from './lib/dates'
+import { MOCK_DB, getResourceId, sampleResources } from './lib/sampleData'
+import { emptyFormData } from './lib/eventForm'
+import { EventModal } from './components/EventModal'
+import { ScheduleView } from './components/ScheduleView'
+import { ResizeErrorToast } from './components/ResizeErrorToast'
+import { ScopeChoiceModal } from './components/ScopeChoiceModal'
+import { EventContextMenuItems } from './components/EventContextMenu'
+import type { EventFormData } from './lib/eventForm'
+import type { CalendarDay } from './lib/calendar'
 import type {
   Event,
   EventDateTimeInput,
   RecurrenceEditScope,
-  RecurrenceFrequency,
   RecurrenceRule,
   ResizeError,
   Resource,
 } from '@tanstack/time'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 import './index.css'
 
-/** The feature set this demo composes. */
-const calendarFeatures = {
-  eventsFeature,
-  eventCrudFeature,
-  resizeFeature,
-  timelineFeature,
-  recurrenceFeature,
-  dependenciesFeature,
-  lazyFetchFeature,
-  historyFeature,
-}
-type CalendarInstance = ReturnType<
-  typeof useCalendar<typeof calendarFeatures, Resource, Event<Resource>>
->
-type CalendarDay = ReturnType<CalendarInstance['getDays']>[number]
-
-function formatDateToISO(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function padTimePart(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-function workWeekMonday(): Date {
-  const today = new Date()
-  const dow = today.getDay()
-  const monday = new Date(today)
-
-  if (dow === 0 || dow === 6) {
-    monday.setDate(today.getDate() + (dow === 0 ? 1 : 2))
-  } else {
-    monday.setDate(today.getDate() + (1 - dow))
-  }
-  monday.setHours(0, 0, 0, 0)
-  return monday
-}
-
-function weekdayAt(isoWeekday: 1 | 2 | 3 | 4 | 5): Date {
-  const monday = workWeekMonday()
-  const d = new Date(monday)
-  d.setDate(monday.getDate() + isoWeekday - 1)
-  return d
-}
-
-function dateTimeOnWeekday(
-  isoWeekday: 1 | 2 | 3 | 4 | 5,
-  hour: number,
-  minute: number,
-): string {
-  const d = weekdayAt(isoWeekday)
-  d.setHours(hour, minute, 0, 0)
-  return `${formatDateToISO(d)}T${padTimePart(hour)}:${padTimePart(minute)}:00`
-}
-
-function getResourceId(resource: Resource | string): string {
-  return typeof resource === 'string' ? resource : resource.id
-}
-
-const sampleResources: Array<Resource> = [
-  {
-    id: 'room-a',
-    label: 'Room A',
-    capacity: [4],
-    availability: [
-      {
-        weekdays: [1, 2, 3, 4, 5],
-        startTime: '00:00',
-        endTime: '24:00',
-      },
-    ],
-  },
-  {
-    id: 'room-b',
-    label: 'Room B',
-    capacity: [2],
-    availability: [
-      {
-        weekdays: [1, 2, 3, 4, 5],
-        startTime: '00:00',
-        endTime: '24:00',
-      },
-    ],
-  },
-]
-
-/*
-  Capacity + consumption demo:
-  - Room A has capacity 4, Room B has capacity 2.
-  - Overlapping events intentionally consume different amounts.
-  - Try resizing one event to overlap others to trigger capacity conflicts.
-*/
-function getSampleEvents(): Array<Event<Resource>> {
-  return [
-    {
-      id: '1',
-      title: 'Team Meeting (A:2)',
-      start: dateTimeOnWeekday(2, 12, 0),
-      end: dateTimeOnWeekday(2, 13, 0),
-      resources: [sampleResources[0]],
-      consumption: [2],
-    },
-    {
-      id: '2',
-      title: 'Project Review (A:2)',
-      start: dateTimeOnWeekday(3, 14, 0),
-      end: dateTimeOnWeekday(3, 15, 30),
-      resources: [sampleResources[0]],
-      consumption: [2],
-    },
-    {
-      id: '3',
-      title: 'Workshop (B:1)',
-      start: dateTimeOnWeekday(4, 12, 0),
-      end: dateTimeOnWeekday(4, 16, 30),
-      resources: [sampleResources[1]],
-      consumption: [1],
-    },
-    {
-      id: '4',
-      title: 'Capacity Probe (A:1)',
-      start: dateTimeOnWeekday(5, 12, 0),
-      end: dateTimeOnWeekday(5, 13, 0),
-      resources: [sampleResources[0]],
-      consumption: [1],
-    },
-    {
-      id: '5',
-      title: 'Focus Block (A:2)',
-      start: dateTimeOnWeekday(5, 12, 30),
-      end: dateTimeOnWeekday(5, 14, 30),
-      resources: [sampleResources[0]],
-      consumption: [2],
-    },
-    {
-      id: '6',
-      title: 'Interview (B:1)',
-      start: dateTimeOnWeekday(2, 12, 30),
-      end: dateTimeOnWeekday(2, 14, 0),
-      resources: [sampleResources[1]],
-      consumption: [1],
-    },
-    {
-      id: 'r-standup',
-      title: '☀ Daily Stand-up (A:1)',
-      start: dateTimeOnWeekday(1, 9, 0),
-      end: dateTimeOnWeekday(1, 9, 15),
-      resources: [sampleResources[0]],
-      consumption: [1],
-      recurrence: {
-        frequency: 'daily',
-        interval: 1,
-        byWeekday: undefined,
-        exDates: [dateTimeOnWeekday(3, 9, 0)],
-        overrides: [
-          {
-            originalStart: dateTimeOnWeekday(2, 9, 0),
-            start: dateTimeOnWeekday(2, 15, 0),
-            end: dateTimeOnWeekday(2, 15, 15),
-            title: '☀ Daily Stand-up moved (A:1)',
-          },
-        ],
-      },
-    },
-    {
-      id: 'r-sync',
-      title: '🔄 Weekly Sync (B:1)',
-      start: dateTimeOnWeekday(1, 10, 0),
-      end: dateTimeOnWeekday(1, 10, 30),
-      resources: [sampleResources[1]],
-      consumption: [1],
-      recurrence: {
-        frequency: 'weekly',
-        interval: 1,
-        byWeekday: [1],
-        count: 6,
-      },
-    },
-    {
-      id: 'r-report',
-      title: '📊 Monthly Report (A:1)',
-      start: dateTimeOnWeekday(1, 14, 0),
-      end: dateTimeOnWeekday(1, 15, 0),
-      resources: [sampleResources[0]],
-      consumption: [1],
-      recurrence: {
-        frequency: 'monthly',
-        interval: 1,
-      },
-    },
-    {
-      id: 'ad-holiday',
-      title: '🎉 Company Holiday',
-      start: `${formatDateToISO(weekdayAt(3))}T00:00:00`,
-      end: `${formatDateToISO(weekdayAt(3))}T23:59:59`,
-      allDay: true,
-    },
-    {
-      id: 'ad-conf',
-      title: '🏢 Offsite Conference',
-      start: `${formatDateToISO(weekdayAt(4))}T00:00:00`,
-      end: `${formatDateToISO(weekdayAt(5))}T23:59:59`,
-      allDay: true,
-    },
-  ]
-}
-
-const MOCK_DB = getSampleEvents()
-
-interface EventFormData {
-  title: string
-  startDate: string
-  startTime: string
-  endDate: string
-  endTime: string
-  resourceId: string
-  consumption: number
-  recurrenceFrequency: RecurrenceFrequency | 'none'
-  recurrenceUntil: string
-  recurrenceEditScope: RecurrenceEditScope
-  allDay: boolean
-}
-
-const emptyFormData: EventFormData = {
-  title: '',
-  startDate: formatDateToISO(new Date()),
-  startTime: '09:00',
-  endDate: formatDateToISO(new Date()),
-  endTime: '10:00',
-  resourceId: sampleResources[0]?.id ?? '',
-  consumption: 1,
-  recurrenceFrequency: 'none',
-  recurrenceUntil: '',
-  recurrenceEditScope: 'this',
-  allDay: false,
-}
-
-function EventModal({
-  isOpen,
-  onClose,
-  onSave,
-  onDelete,
-  initialData,
-  isRecurring,
-  mode,
-  isSaving,
-  resources,
-}: {
+type ModalState = {
   isOpen: boolean
-  onClose: () => void
-  onSave: (data: EventFormData) => Promise<void>
-  onDelete?: (data: EventFormData) => void
-  initialData: EventFormData
   mode: 'add' | 'edit'
+  eventId?: string
+  occurrenceStart?: string
   isRecurring?: boolean
-  isSaving?: boolean
-  resources: Array<Resource>
-}) {
-  const [formData, setFormData] = useState<EventFormData>(initialData)
-
-  useEffect(() => {
-    setFormData(initialData)
-  }, [initialData])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      await onSave(formData)
-    } catch {
-      return
-    }
-    onClose()
-  }
-
-  const recurrencyOptions: Array<{
-    value: RecurrenceFrequency | 'none'
-    label: string
-  }> = [
-    { value: 'none', label: 'Does not repeat' },
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'yearly', label: 'Yearly' },
-  ]
-
-  const recurrenceEditScopeOptions: Array<{
-    value: RecurrenceEditScope
-    label: string
-  }> = [
-    { value: 'this', label: 'This event only' },
-    { value: 'thisAndFollowing', label: 'This and following events' },
-    { value: 'all', label: 'All events in series' },
-  ]
-
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md bg-card border-border">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === 'add' ? 'Add Event' : 'Edit Event'}
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              type="text"
-              value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
-              placeholder="Event title"
-              required
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="allDay"
-              type="checkbox"
-              checked={formData.allDay}
-              onChange={(e) =>
-                setFormData({ ...formData, allDay: e.target.checked })
-              }
-              className="h-4 w-4"
-            />
-            <Label htmlFor="allDay" className="cursor-pointer">
-              All-day
-            </Label>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={formData.startDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, startDate: e.target.value })
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="startTime">Start Time</Label>
-              <Input
-                id="startTime"
-                type="time"
-                value={formData.startTime}
-                onChange={(e) =>
-                  setFormData({ ...formData, startTime: e.target.value })
-                }
-                disabled={formData.allDay}
-                required={!formData.allDay}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="resourceId">Resource</Label>
-              <select
-                id="resourceId"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={formData.resourceId}
-                onChange={(e) =>
-                  setFormData({ ...formData, resourceId: e.target.value })
-                }
-                required
-              >
-                {resources.map((resource) => (
-                  <option key={resource.id} value={resource.id}>
-                    {resource.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="consumption">Consumption</Label>
-              <Input
-                id="consumption"
-                type="number"
-                min={1}
-                step={1}
-                value={formData.consumption}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    consumption: Math.max(1, Number(e.target.value) || 1),
-                  })
-                }
-                required
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={formData.endDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, endDate: e.target.value })
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endTime">End Time</Label>
-              <Input
-                id="endTime"
-                type="time"
-                value={formData.endTime}
-                onChange={(e) =>
-                  setFormData({ ...formData, endTime: e.target.value })
-                }
-                disabled={formData.allDay}
-                required={!formData.allDay}
-              />
-            </div>
-          </div>
-
-          {mode === 'edit' && isRecurring && (
-            <div className="space-y-2 rounded-md border border-neutral-800 bg-neutral-950/60 p-3">
-              <Label htmlFor="recurrenceEditScope">Apply changes to</Label>
-              <select
-                id="recurrenceEditScope"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={formData.recurrenceEditScope}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    recurrenceEditScope: e.target.value as RecurrenceEditScope,
-                  })
-                }
-              >
-                {recurrenceEditScopeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-neutral-500">
-                Save or Delete uses selected recurring-event scope.
-              </p>
-            </div>
-          )}
-
-          {/* ── Recurrence ───────────────────────────────────────────── */}
-          <div className="space-y-2">
-            <Label htmlFor="recurrenceFrequency">Repeat</Label>
-            <select
-              id="recurrenceFrequency"
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              value={formData.recurrenceFrequency}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  recurrenceFrequency: e.target.value as
-                    | RecurrenceFrequency
-                    | 'none',
-                })
-              }
-            >
-              {recurrencyOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {formData.recurrenceFrequency !== 'none' && (
-            <div className="space-y-2">
-              <Label htmlFor="recurrenceUntil">Repeat until (optional)</Label>
-              <Input
-                id="recurrenceUntil"
-                type="date"
-                value={formData.recurrenceUntil}
-                onChange={(e) =>
-                  setFormData({ ...formData, recurrenceUntil: e.target.value })
-                }
-              />
-            </div>
-          )}
-
-          <div className="flex justify-between pt-4">
-            <div>
-              {mode === 'edit' && onDelete && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    onDelete(formData)
-                    onClose()
-                  }}
-                >
-                  Delete
-                  {isRecurring
-                    ? ` ${formData.recurrenceEditScope === 'this' ? 'this event' : formData.recurrenceEditScope === 'thisAndFollowing' ? 'this and following' : 'series'}`
-                    : ''}
-                </Button>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? 'Saving…' : mode === 'add' ? 'Add' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
+  initialData: EventFormData
 }
-
-interface ResizeHandleProps {
-  edge: 'top' | 'bottom'
-  /**
-   * When the event is too short to host two stacked handles inside it, float
-   * the handle just outside the box (above for top, below for bottom) so the
-   * two handles never overlap and the event stays resizable at any height.
-   */
-  floating?: boolean
-  onMouseDown: (e: React.MouseEvent) => void
-}
-
-function ResizeHandle({ edge, floating, onMouseDown }: ResizeHandleProps) {
-  const edgePosition = floating
-    ? edge === 'top'
-      ? '-top-3'
-      : '-bottom-3'
-    : edge === 'top'
-      ? 'top-0'
-      : 'bottom-0'
-
-  return (
-    <div
-      data-resize-handle
-      className={`absolute left-0 right-0 h-3 cursor-ns-resize z-30 bg-transparent hover:bg-neutral-500/30 pointer-events-auto ${edgePosition}`}
-      onMouseDown={onMouseDown}
-      onClick={(e) => {
-        e.stopPropagation()
-      }}
-      style={{ touchAction: 'none' }}
-    >
-      <div
-        className={`absolute left-1/2 -translate-x-1/2 w-8 h-1 bg-neutral-400 rounded opacity-50 group-hover:opacity-100 transition-opacity ${
-          edge === 'top' ? 'top-1' : 'bottom-1'
-        }`}
-      />
-    </div>
-  )
-}
-
-function ScheduleView({
-  calendar,
-  days,
-  resources,
-  onEventClick,
-  scrollRef,
-  leftSentinelRef,
-  rightSentinelRef,
-  periodDayCount,
-}: {
-  calendar: CalendarInstance
-  days: Array<CalendarDay>
-  resources: Array<Resource>
-  onEventClick: (event: Event<Resource>, scope?: RecurrenceEditScope) => void
-  scrollRef: React.RefObject<HTMLDivElement | null>
-  leftSentinelRef: React.RefObject<HTMLDivElement | null>
-  rightSentinelRef: React.RefObject<HTMLDivElement | null>
-  periodDayCount: number
-}) {
-  const timeSlots = calendar.getTimeSlots()
-  const resizeState = calendar.getResizeState()
-  const getUnavailableRanges = calendar.getUnavailableRanges
-
-  const maxAllDay = days.reduce((m, d) => Math.max(m, d.allDayEvents.length), 0)
-  const allDayRowHeight = maxAllDay > 0 ? maxAllDay * 24 + 8 : 28
-
-  return (
-    <div className="border border-neutral-800 rounded-lg overflow-hidden bg-black">
-      <div className="border-b border-neutral-800 bg-neutral-950 px-4 py-3">
-        <div className="flex gap-6 flex-wrap">
-          {resources.map((resource, idx) => {
-            const colors = ['#0049af75', '#00af3475']
-            const color = colors[idx % colors.length]
-            return (
-              <div key={resource.id} className="flex items-center gap-2">
-                <div
-                  className="w-4 h-4 rounded-sm"
-                  style={{
-                    backgroundColor: color,
-                    backgroundImage: `repeating-linear-gradient(315deg, ${color} 0, ${color} 1px, transparent 0, transparent 50%)`,
-                  }}
-                />
-                <span className="text-sm text-neutral-300">
-                  {resource.label}
-                </span>
-                {resource.capacity !== undefined && (
-                  <span className="text-xs text-neutral-500">
-                    (Capacity: {resource.capacity})
-                  </span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <div className="flex border-t border-neutral-800">
-        <div className="w-20 border-r border-neutral-800 bg-neutral-950">
-          <div className="h-12 border-b border-neutral-800"></div>
-          <div
-            className="border-b border-neutral-800 px-2 py-1 text-[10px] uppercase tracking-wide text-neutral-500 flex items-center"
-            style={{ height: allDayRowHeight }}
-          >
-            all-day
-          </div>
-          {timeSlots.map((slot) => (
-            <div
-              key={`${slot.hour}-${slot.minute}`}
-              className="h-[60px] border-b border-neutral-800/50 px-2 py-1 text-xs text-neutral-500"
-            >
-              {slot.label}
-            </div>
-          ))}
-        </div>
-        {/* Horizontal-scrollable schedule body — sentinels auto-navigate on edge */}
-        <ScrollArea viewportRef={scrollRef} className="flex-1">
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: `1px repeat(${days.length}, minmax(0, 1fr)) 1px`,
-              minWidth: `${(days.length / periodDayCount) * 100}%`,
-            }}
-          >
-            <div ref={leftSentinelRef} style={{ width: 1 }} aria-hidden />
-            <div className="contents">
-              {days.map((day) => {
-                const dayDate = `${day.date.year}-${String(day.date.month).padStart(2, '0')}-${String(day.date.day).padStart(2, '0')}`
-                const dayName = new Intl.DateTimeFormat('en-US', {
-                  weekday: 'short',
-                }).format(
-                  new Date(day.date.year, day.date.month - 1, day.date.day),
-                )
-                return (
-                  <div
-                    key={day.date.toString()}
-                    className="border-r border-neutral-800 last:border-r-0"
-                    {...day.getColumnProps()}
-                  >
-                    <div className="h-12 border-b border-neutral-800 bg-neutral-950 px-3 py-2 text-center">
-                      <div className="text-sm font-semibold text-neutral-200">
-                        {dayName}
-                      </div>
-                      <div className="text-xs text-neutral-500">
-                        {day.date.day}
-                      </div>
-                    </div>
-                    <div
-                      className="border-b border-neutral-800 bg-neutral-950/60 px-1 py-1 flex flex-col gap-1 overflow-hidden"
-                      style={{ height: allDayRowHeight }}
-                    >
-                      {day.allDayEvents.map((event) => (
-                        <div
-                          key={`ad-${event.id}`}
-                          className="cursor-pointer bg-amber-700/70 hover:bg-amber-600/80 text-amber-50 rounded px-2 text-[11px] font-medium truncate border border-amber-600/40"
-                          style={{ height: 20, lineHeight: '20px' }}
-                          title={event.title}
-                          onClick={() => onEventClick(event)}
-                        >
-                          {event.title}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="relative h-[1440px] bg-neutral-950/30">
-                      {resources.map((resource, resourceIdx) => {
-                        const resourceRanges = getUnavailableRanges(dayDate, {
-                          resourceIds: [resource.id],
-                        })
-                        const colors = ['#0049af75', '#00af3475']
-                        const color = colors[resourceIdx % colors.length]
-
-                        return resourceRanges.map((range, rangeIdx) => (
-                          <div
-                            key={`${resource.id}-${rangeIdx}`}
-                            className="absolute left-0 right-0 pointer-events-none z-0 bg-[length:10px_10px] bg-fixed"
-                            style={{
-                              top: `${range.top}px`,
-                              height: `${range.height}px`,
-                              backgroundImage: `repeating-linear-gradient(315deg, ${color} 0, ${color} 1px, transparent 0, transparent 50%)`,
-                            }}
-                            title={`Unavailable - ${resource.label}`}
-                          />
-                        ))
-                      })}
-                      {day.events.map((event, eventIndex) => {
-                        const eventProps = calendar.getEventProps(event)
-                        const { style, isSplitEvent } = eventProps
-
-                        const segmentInfo = calendar.getEventSegmentInfo(event)
-                        const {
-                          isFirstSegment,
-                          isLastSegment,
-                          originalStart,
-                          originalEnd,
-                        } = segmentInfo
-
-                        const isBeingResized =
-                          resizeState.isResizing &&
-                          resizeState.eventId === event.id
-
-                        const resizePreview =
-                          isBeingResized &&
-                          resizeState.previewStart &&
-                          resizeState.previewEnd
-                            ? calculateSegmentResizePreview({
-                                dayDate,
-                                originalStart,
-                                originalEnd,
-                                previewStart: resizeState.previewStart,
-                                previewEnd: resizeState.previewEnd,
-                              })
-                            : null
-
-                        if (resizePreview?.shouldHide) {
-                          return null
-                        }
-
-                        const displayStyle = resizePreview?.previewStyle
-                          ? { ...style, ...resizePreview.previewStyle }
-                          : style
-
-                        // Events render at their true height (no min-height
-                        // floor). A very short event can't host two stacked
-                        // 12px handles inside it without them overlapping and
-                        // stealing each other's clicks — so for those, float
-                        // the handles just outside the box. Still resizable.
-                        const RESIZE_HANDLE_PX = 12 // ResizeHandle `h-3`
-                        const DAY_COLUMN_HEIGHT_PX = 1440 // the `h-[1440px]` grid
-                        const renderedHeightPx = style?.height
-                          ? (parseFloat(style.height) / 100) *
-                            DAY_COLUMN_HEIGHT_PX
-                          : Infinity
-                        const floatHandles =
-                          renderedHeightPx < RESIZE_HANDLE_PX * 2
-
-                        const showTopHandle = !isSplitEvent || isFirstSegment
-                        const showBottomHandle = !isSplitEvent || isLastSegment
-                        const isActivelyResized =
-                          isBeingResized && resizePreview?.previewStyle !== null
-
-                        const timeRange = formatEventTimeRange(
-                          isBeingResized && resizeState.previewStart
-                            ? resizeState.previewStart
-                            : originalStart,
-                          isBeingResized && resizeState.previewEnd
-                            ? resizeState.previewEnd
-                            : originalEnd,
-                        )
-
-                        return (
-                          <ContextMenu key={`${event.id}-${eventIndex}`}>
-                            <ContextMenuTrigger
-                              className={`group absolute z-10 bg-neutral-800 text-white rounded px-2 py-1 text-xs font-medium transition-colors border border-neutral-700 ${
-                                // Floating handles sit outside the box, so they
-                                // must not be clipped.
-                                floatHandles ? '' : 'overflow-hidden'
-                              } ${
-                                isActivelyResized
-                                  ? 'bg-neutral-700 ring-2 ring-neutral-500 z-20'
-                                  : 'cursor-pointer hover:bg-neutral-700'
-                              }`}
-                              style={displayStyle as React.CSSProperties}
-                              onClick={(e: React.MouseEvent) => {
-                                if (
-                                  !resizeState.isResizing &&
-                                  !(e.target as HTMLElement).closest(
-                                    '[data-resize-handle]',
-                                  )
-                                ) {
-                                  onEventClick(event)
-                                }
-                              }}
-                            >
-                              {showTopHandle && (
-                                <ResizeHandle
-                                  edge="top"
-                                  floating={floatHandles}
-                                  {...event.getResizeHandleProps('top', {
-                                    occurrenceStart:
-                                      event._occurrenceOriginalStart,
-                                  })}
-                                />
-                              )}
-                              <div className="font-semibold pt-1 flex items-center gap-1.5">
-                                <span className="flex items-center gap-1 min-w-0">
-                                  {event.recurrence && (
-                                    <span
-                                      className="opacity-60 flex-shrink-0"
-                                      title="Recurring event"
-                                    >
-                                      ↻
-                                    </span>
-                                  )}
-                                  <span className="truncate">
-                                    {event.title}
-                                  </span>
-                                </span>
-                                {event.consumption &&
-                                  event.consumption.length > 0 && (
-                                    <span
-                                      className="text-[10px] leading-none rounded bg-black/40 px-1 py-0.5 font-semibold flex-shrink-0"
-                                      title="Consumption"
-                                    >
-                                      {event.consumption.reduce(
-                                        (a, b) => a + b,
-                                        0,
-                                      )}
-                                    </span>
-                                  )}
-                              </div>
-                              {displayStyle &&
-                                parseFloat(displayStyle.height) > 2 && (
-                                  <div className="text-xs opacity-90 mt-0.5">
-                                    {timeRange.rangeFormatted}
-                                  </div>
-                                )}
-                              {showBottomHandle && (
-                                <ResizeHandle
-                                  edge="bottom"
-                                  floating={floatHandles}
-                                  {...event.getResizeHandleProps('bottom', {
-                                    occurrenceStart:
-                                      event._occurrenceOriginalStart,
-                                  })}
-                                />
-                              )}
-                            </ContextMenuTrigger>
-                            <ContextMenuContent>
-                              <ContextMenuItem
-                                onClick={() => onEventClick(event)}
-                              >
-                                {event.recurrence
-                                  ? 'Edit this occurrence'
-                                  : 'Edit event'}
-                              </ContextMenuItem>
-                              {event.recurrence && (
-                                <>
-                                  <ContextMenuItem
-                                    onClick={() =>
-                                      onEventClick(event, 'thisAndFollowing')
-                                    }
-                                  >
-                                    Edit this and following
-                                  </ContextMenuItem>
-                                  <ContextMenuItem
-                                    onClick={() => onEventClick(event, 'all')}
-                                  >
-                                    Edit series
-                                  </ContextMenuItem>
-                                </>
-                              )}
-                              {event.recurrence && (
-                                <>
-                                  <ContextMenuSeparator />
-                                  <ContextMenuItem
-                                    onClick={() =>
-                                      calendar.goToPreviousOccurrence(
-                                        event.id,
-                                        event.start,
-                                      )
-                                    }
-                                  >
-                                    ← Previous occurrence
-                                  </ContextMenuItem>
-                                  <ContextMenuItem
-                                    onClick={() =>
-                                      calendar.goToNextOccurrence(
-                                        event.id,
-                                        event.start,
-                                      )
-                                    }
-                                  >
-                                    Next occurrence →
-                                  </ContextMenuItem>
-                                </>
-                              )}
-                            </ContextMenuContent>
-                          </ContextMenu>
-                        )
-                      })}
-                      {resizeState.isResizing &&
-                        resizeState.previewStart &&
-                        resizeState.previewEnd &&
-                        !day.events.some((e) => e.id === resizeState.eventId) &&
-                        (() => {
-                          const ghostStyle = calculateGhostPreviewStyle({
-                            dayDate,
-                            previewStart: resizeState.previewStart,
-                            previewEnd: resizeState.previewEnd,
-                          })
-
-                          if (!ghostStyle) return null
-
-                          const timeRange = formatEventTimeRange(
-                            resizeState.previewStart,
-                            resizeState.previewEnd,
-                          )
-
-                          return (
-                            <div
-                              className="absolute bg-neutral-700/60 text-neutral-200 rounded px-2 py-1 text-xs font-medium overflow-hidden border border-neutral-600 border-dashed z-20"
-                              style={ghostStyle}
-                            >
-                              <div className="font-semibold pt-1 opacity-80">
-                                {timeRange.rangeFormatted}
-                              </div>
-                            </div>
-                          )
-                        })()}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            <div ref={rightSentinelRef} style={{ width: 1 }} aria-hidden />
-          </div>
-        </ScrollArea>
-      </div>
-    </div>
-  )
-}
-
-function ResizeErrorToast({
-  error,
-  onDismiss,
-}: {
-  error: ResizeError
-  onDismiss: () => void
-}) {
-  useEffect(() => {
-    const timer = setTimeout(onDismiss, 5000)
-    return () => clearTimeout(timer)
-  }, [onDismiss])
-
-  return (
-    <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-2 fade-in duration-200">
-      <div className="bg-red-950/90 border border-red-700/50 text-red-200 rounded-lg px-4 py-3 shadow-lg max-w-md">
-        <div className="flex items-start gap-3">
-          <div className="text-red-400 text-lg">⚠</div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-red-100 mb-1">
-              Cannot Resize Event
-            </div>
-            <div className="text-sm text-red-200/80 mb-2">{error.message}</div>
-            {error.conflicts && error.conflicts.length > 0 && (
-              <div className="mt-2 space-y-1">
-                <div className="text-xs text-red-300/70 font-medium uppercase tracking-wide">
-                  Conflicts:
-                </div>
-                {error.conflicts.map((conflict, idx) => (
-                  <div
-                    key={idx}
-                    className="text-xs text-red-200/70 bg-red-950/50 rounded px-2 py-1.5 border border-red-800/30"
-                  >
-                    <div className="font-medium text-red-200/90">
-                      {conflict.date}
-                    </div>
-                    <div className="text-red-300/60">
-                      {conflict.conflictRange.start} -{' '}
-                      {conflict.conflictRange.end}
-                    </div>
-                    <div className="text-red-300/50 mt-0.5">
-                      {conflict.description}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="text-xs text-red-300/60 mt-2">
-              {error.eventTitle}
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onDismiss}
-            className="text-destructive-foreground/60 hover:text-destructive-foreground h-6 w-6"
-          >
-            ✕
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ScopeChoiceModal({
-  event,
-  isOpen,
-  title = 'Edit recurring event',
-  onSelect,
-  onClose,
-}: {
-  event: Event<Resource> | null
-  isOpen: boolean
-  title?: string
-  onSelect: (scope: RecurrenceEditScope) => void
-  onClose: () => void
-}) {
-  if (!isOpen) return null
-  return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xs bg-card border-border">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <div className="mt-2 text-sm text-neutral-400">
-          {event?.title ?? 'Choose how to apply this recurring-event change.'}
-        </div>
-        <div className="space-y-2 mt-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => onSelect('this')}
-          >
-            This occurrence
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => onSelect('thisAndFollowing')}
-          >
-            This and following
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => onSelect('all')}
-          >
-            All events
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function CalendarView() {
   const [resources, setResources] = useState<Array<Resource>>(sampleResources)
 
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean
-    mode: 'add' | 'edit'
-    eventId?: string
-    occurrenceStart?: string
-    isRecurring?: boolean
-    initialData: EventFormData
-  }>({
+  const [modalState, setModalState] = useState<ModalState>({
     isOpen: false,
     mode: 'add',
     initialData: emptyFormData,
@@ -1134,54 +59,58 @@ function CalendarView() {
 
   const [resizeError, setResizeError] = useState<ResizeError | null>(null)
 
-  const calendar = useCalendar({
-    viewMode: { value: 1, unit: 'month' },
-    events: [] as Array<Event<Resource>>,
-    resources,
-    timeZone: 'UTC',
-    features: calendarFeatures,
-    fetchEvents: async ({ start, end }) => {
-      await new Promise((resolve) => setTimeout(resolve, 300))
+  const calendar = useCalendar(
+    {
+      viewMode: { value: 1, unit: 'month' },
+      events: [] as Array<Event<Resource>>,
+      resources,
+      timeZone: 'UTC',
+      features: calendarFeatures,
+      fetchEvents: async ({ start, end }) => {
+        await new Promise((resolve) => setTimeout(resolve, 300))
 
-      const startDate = new Date(start)
-      const endDate = new Date(end)
-      const resourceById = new Map(
-        resources.map((resource) => [resource.id, resource]),
-      )
+        const startDate = new Date(start)
+        const endDate = new Date(end)
+        const resourceById = new Map(
+          resources.map((resource) => [resource.id, resource]),
+        )
 
-      return MOCK_DB.filter((e) => {
-        if (e.recurrence) return true
-        const eStart = new Date(e.start as string)
-        const eEnd = new Date(e.end as string)
-        return eStart <= endDate && eEnd >= startDate
-      }).map((event) => ({
-        ...event,
-        resources:
-          event.resources
-            ?.map((resource) => resourceById.get(getResourceId(resource)))
-            .filter((resource): resource is Resource => resource != null) ?? [],
-      }))
+        return MOCK_DB.filter((e) => {
+          if (e.recurrence) return true
+          const eStart = new Date(e.start as string)
+          const eEnd = new Date(e.end as string)
+          return eStart <= endDate && eEnd >= startDate
+        }).map((event) => ({
+          ...event,
+          resources:
+            event.resources
+              ?.map((resource) => resourceById.get(getResourceId(resource)))
+              .filter((resource): resource is Resource => resource != null) ??
+            [],
+        }))
+      },
+      resize: {
+        enabled: true,
+        containerHeight: 1440,
+        constraints: {
+          minDurationMinutes: 15,
+          snapToMinutes: 15,
+        },
+        onResizeError: (error) => {
+          setResizeError(error)
+        },
+        onRecurringResizeEnd: (resize) => {
+          setResizeScopeChoice({
+            eventId: resize.eventId,
+            occurrenceStart: resize.occurrenceStart,
+            newStart: resize.newStart,
+            newEnd: resize.newEnd,
+          })
+        },
+      },
     },
-    resize: {
-      enabled: true,
-      containerHeight: 1440,
-      constraints: {
-        minDurationMinutes: 15,
-        snapToMinutes: 15,
-      },
-      onResizeError: (error) => {
-        setResizeError(error)
-      },
-      onRecurringResizeEnd: (resize) => {
-        setResizeScopeChoice({
-          eventId: resize.eventId,
-          occurrenceStart: resize.occurrenceStart,
-          newStart: resize.newStart,
-          newEnd: resize.newEnd,
-        })
-      },
-    },
-  })
+    (state) => state,
+  )
 
   // `calendar.state` is the subscribed state (whole state here — no selector
   // was passed to useCalendar). For finer control, pass a selector to
@@ -1463,7 +392,7 @@ function CalendarView() {
     disabled: !isScheduleView,
   })
 
-  const openAddModal = () => {
+  function openAddModal() {
     setModalState({
       isOpen: true,
       mode: 'add',
@@ -1474,10 +403,10 @@ function CalendarView() {
     })
   }
 
-  const handleEventClick = (
+  function handleEventClick(
     event: Event<Resource>,
     scope?: RecurrenceEditScope,
-  ) => {
+  ) {
     if (event.recurrence && !scope) {
       setScopeChoiceEvent(event)
       return
@@ -1873,58 +802,11 @@ function CalendarView() {
                                     )}
                                 </Badge>
                               </ContextMenuTrigger>
-                              <ContextMenuContent>
-                                <ContextMenuItem
-                                  onClick={() => openEditModal(event)}
-                                >
-                                  {event.recurrence
-                                    ? 'Edit this occurrence'
-                                    : 'Edit event'}
-                                </ContextMenuItem>
-                                {event.recurrence && (
-                                  <>
-                                    <ContextMenuItem
-                                      onClick={() =>
-                                        openEditModal(event, 'thisAndFollowing')
-                                      }
-                                    >
-                                      Edit this and following
-                                    </ContextMenuItem>
-                                    <ContextMenuItem
-                                      onClick={() =>
-                                        openEditModal(event, 'all')
-                                      }
-                                    >
-                                      Edit series
-                                    </ContextMenuItem>
-                                  </>
-                                )}
-                                {event.recurrence && (
-                                  <>
-                                    <ContextMenuSeparator />
-                                    <ContextMenuItem
-                                      onClick={() =>
-                                        calendar.goToPreviousOccurrence(
-                                          event.id,
-                                          event.start,
-                                        )
-                                      }
-                                    >
-                                      ← Previous occurrence
-                                    </ContextMenuItem>
-                                    <ContextMenuItem
-                                      onClick={() =>
-                                        calendar.goToNextOccurrence(
-                                          event.id,
-                                          event.start,
-                                        )
-                                      }
-                                    >
-                                      Next occurrence →
-                                    </ContextMenuItem>
-                                  </>
-                                )}
-                              </ContextMenuContent>
+                              <EventContextMenuItems
+                                event={event}
+                                calendar={calendar}
+                                onEdit={openEditModal}
+                              />
                             </ContextMenu>
                           ))}
                         </div>
