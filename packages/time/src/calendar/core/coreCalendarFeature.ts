@@ -60,6 +60,38 @@ export const coreCalendarFeature: CalendarFeature = {
     calendar._getCalendarDays = () => engine.listCalendarDays()
 
     calendar.getDays = () => buildDayShells(calendar)
+
+    const localeOf = (override?: string) =>
+      override ?? calendar.options.locale ?? 'en-US'
+
+    calendar.formatCurrentPeriod = (options?: { locale?: string }) => {
+      const period = calendar.store.state.currentPeriod
+      return new Date(
+        period.year,
+        period.month - 1,
+        period.day,
+      ).toLocaleDateString(localeOf(options?.locale), {
+        month: 'long',
+        year: 'numeric',
+      })
+    }
+
+    calendar.formatPeriodLabel = (options?: { locale?: string }) => {
+      const days = calendar.getDays()
+      if (days.length === 0) return ''
+      const locale = localeOf(options?.locale)
+      const fmt = (d: Temporal.PlainDate) =>
+        new Date(d.year, d.month - 1, d.day).toLocaleDateString(locale, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      const first = days[0]!.date
+      const last = days[days.length - 1]!.date
+      return days.length === 1
+        ? fmt(first)
+        : `${fmt(first)} — ${fmt(last)}`
+    }
   },
 }
 

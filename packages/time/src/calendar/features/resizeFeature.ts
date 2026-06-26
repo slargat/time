@@ -106,13 +106,21 @@ export const resizeFeature: CalendarFeature = {
         .resizeController
 
     prototype.getResizeHandleProps = function (
-      this: { id: string; start: unknown; end: unknown },
+      this: {
+        id: string
+        start: unknown
+        end: unknown
+        _originalStart?: string
+        _originalEnd?: string
+      },
       edge: ResizeEdge,
       options?: ResizeHandleOptions,
     ) {
       const id = this.id
-      const originalStart = this.start as string
-      const originalEnd = this.end as string
+      // Multi-day segments carry the full event span on `_original*`; the
+      // controller validates/commits against that, not the per-day slice.
+      const originalStart = (this._originalStart ?? this.start) as string
+      const originalEnd = (this._originalEnd ?? this.end) as string
       return {
         onMouseDown: (event: ResizePointerEvent) => {
           const started = getController().start({

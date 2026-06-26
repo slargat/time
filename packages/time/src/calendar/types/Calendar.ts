@@ -113,6 +113,10 @@ export interface Calendar_Core<
   changeViewMode: (viewMode: ViewMode) => void
   getWeekStartsOn: () => number
   getDaysNames: (weekday?: 'long' | 'short') => Array<string>
+  /** "January 2024"-style label for the current period. */
+  formatCurrentPeriod: (options?: { locale?: string }) => string
+  /** Human-readable label for the currently visible date range. */
+  formatPeriodLabel: (options?: { locale?: string }) => string
   /**
    * Day nodes for the current view. Each day's `events`/`allDayEvents` are
    * populated when `eventsFeature` is registered, otherwise empty. Event/day
