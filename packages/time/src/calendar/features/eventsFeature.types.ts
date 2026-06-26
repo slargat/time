@@ -1,5 +1,7 @@
 import type { SegmentInfo } from '../getResizeProps'
 import type { Day, Event, Resource, TimeSlot } from '../types'
+import type { DayNode } from '../types/Calendar'
+import type { CalendarFeatures } from '../types/CalendarFeatures'
 
 /** Node methods `eventsFeature` adds to every event node. */
 export interface EventNode_Events<
@@ -28,6 +30,7 @@ export interface EventProps<TEvent extends Event = Event> {
 
 /** API contributed by `eventsFeature` — the event data + derivation layer. */
 export interface Calendar_Events<
+  TFeatures extends CalendarFeatures = CalendarFeatures,
   TResource extends Resource = Resource,
   TEvent extends Event<TResource> = Event<TResource>,
 > {
@@ -39,8 +42,11 @@ export interface Calendar_Events<
   getEventsByDate: (date: string) => Array<TEvent>
   /** All-day events occurring on a given ISO date (multi-day segments included). */
   getAllDayEventsByDate: (date: string) => Array<TEvent>
-  /** Day objects for an arbitrary inclusive range, derived from current state. */
-  getDaysInRange: (start: string, end: string) => Array<Day<TResource, TEvent>>
+  /** Day nodes for an arbitrary inclusive range, derived from current state. */
+  getDaysInRange: (
+    start: string,
+    end: string,
+  ) => Array<DayNode<TFeatures, TResource, TEvent>>
   /** The master event for an occurrence (or the event itself). */
   getMasterEvent: (event: TEvent) => TEvent
   /** Split/occurrence metadata for an event. */

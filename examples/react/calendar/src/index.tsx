@@ -1418,12 +1418,7 @@ function CalendarView() {
     }
 
     setScheduleBufferVersion((v) => v + 1)
-  }, [
-    currentPeriod,
-    isScheduleView,
-    viewMode.unit,
-    days,
-  ])
+  }, [currentPeriod, isScheduleView, viewMode.unit, days])
 
   useLayoutEffect(() => {
     if (!needsScheduleScrollAdjRef.current) return
@@ -1444,8 +1439,7 @@ function CalendarView() {
     )
   }, [scheduleBufferVersion, scheduleDays, days, calendar])
 
-  const periodDayCount =
-    viewMode.unit === 'day' ? 1 : scheduleDays.length || 7
+  const periodDayCount = viewMode.unit === 'day' ? 1 : scheduleDays.length || 7
 
   const {
     startSentinelRef: scheduleLeftRef,
@@ -1666,9 +1660,7 @@ function CalendarView() {
               onClick={() =>
                 calendar.changeViewMode({ value: 1, unit: 'month' })
               }
-              variant={
-                viewMode.unit === 'month' ? 'secondary' : 'outline'
-              }
+              variant={viewMode.unit === 'month' ? 'secondary' : 'outline'}
               size="sm"
             >
               Month
@@ -1677,18 +1669,14 @@ function CalendarView() {
               onClick={() =>
                 calendar.changeViewMode({ value: 1, unit: 'week' })
               }
-              variant={
-                viewMode.unit === 'week' ? 'secondary' : 'outline'
-              }
+              variant={viewMode.unit === 'week' ? 'secondary' : 'outline'}
               size="sm"
             >
               Week
             </Button>
             <Button
               onClick={() => calendar.changeViewMode({ value: 1, unit: 'day' })}
-              variant={
-                viewMode.unit === 'day' ? 'secondary' : 'outline'
-              }
+              variant={viewMode.unit === 'day' ? 'secondary' : 'outline'}
               size="sm"
             >
               Day
@@ -1745,9 +1733,7 @@ function CalendarView() {
       {isScheduleView ? (
         <ScheduleView
           calendar={calendar}
-          // getDaysInRange/groupDaysBy return DayNodes at runtime; their lib
-          // types still say Day (node-typing them is a follow-up).
-          days={bufferedScheduleDays as Array<CalendarDay>}
+          days={bufferedScheduleDays}
           resources={resources}
           onEventClick={handleEventClick}
           scrollRef={scheduleScrollRef}

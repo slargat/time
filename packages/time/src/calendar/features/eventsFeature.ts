@@ -212,13 +212,16 @@ export const eventsFeature: CalendarFeature = {
 
     calendar.getDays = () => buildDays(calendar._getCalendarDays())
 
-    calendar.getDaysInRange = (start: string, end: string) => {
+    // The broad internal type widens node features to CalendarFeatures; the
+    // public Calendar_Events<TFeatures> narrows it back for callers. Runtime
+    // nodes carry exactly the registered features' methods.
+    calendar.getDaysInRange = ((start: string, end: string) => {
       const days = generateDateRange(start, end)
       const windowEnd = Temporal.PlainDate.from(end)
         .add({ days: 1 })
         .toString({ calendarName: 'never' })
       return buildDays(days, { start, end: windowEnd })
-    }
+    }) as unknown as typeof calendar.getDaysInRange
 
     calendar.getEventsByDate = (date: string) => {
       const target = Temporal.PlainDate.from(date).toString({

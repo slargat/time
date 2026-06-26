@@ -125,15 +125,13 @@ export interface Calendar_Core<
   getDays: () => Array<DayNode<TFeatures, TResource, TEvent>>
 }
 
-/**
- * Maps each feature key to the API it contributes to the calendar instance.
- * (Parameterise by `TFeatures` once a feature augments node types by it.)
- */
+/** Maps each feature key to the API it contributes to the calendar instance. */
 export interface Calendar_FeatureMap<
+  TFeatures extends CalendarFeatures,
   TResource extends Resource,
   TEvent extends Event<TResource>,
 > {
-  eventsFeature: Calendar_Events<TResource, TEvent>
+  eventsFeature: Calendar_Events<TFeatures, TResource, TEvent>
   eventCrudFeature: Calendar_Crud<TResource, TEvent>
   resizeFeature: Calendar_Resize<TResource, TEvent>
   timelineFeature: Calendar_Timeline<TResource, TEvent>
@@ -153,11 +151,24 @@ export type Calendar<
   TResource extends Resource = Resource,
   TEvent extends Event<TResource> = Event<TResource>,
 > = Calendar_Core<TFeatures, TResource, TEvent> &
-  ExtractFeatureMapTypes<TFeatures, Calendar_FeatureMap<TResource, TEvent>>
+  ExtractFeatureMapTypes<
+    TFeatures,
+    Calendar_FeatureMap<TFeatures, TResource, TEvent>
+  >
 
-/** Intersection of every stock feature API — the broad shape feature code sees. */
+/**
+ * Intersection of every stock feature API — the broad shape feature code sees.
+ * Indexed with `CalendarFeatures` so all features (and all node methods) are
+ * present regardless of the concrete registered set.
+ */
 type AllFeatureApis<TResource extends Resource, TEvent extends Event<TResource>> =
-  UnionToIntersection<Calendar_FeatureMap<TResource, TEvent>[keyof Calendar_FeatureMap<TResource, TEvent>]>
+  UnionToIntersection<
+    Calendar_FeatureMap<CalendarFeatures, TResource, TEvent>[keyof Calendar_FeatureMap<
+      CalendarFeatures,
+      TResource,
+      TEvent
+    >]
+  >
 
 /**
  * The broad internal view passed to feature hooks: every feature API (so e.g.
