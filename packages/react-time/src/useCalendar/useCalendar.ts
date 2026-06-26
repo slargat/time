@@ -44,7 +44,7 @@ function CalendarSubscribeComponent(props: {
   selector?: CalendarStateSelector<unknown>
   children: ((state: unknown) => ReactNode) | ReactNode
 }): ReactNode {
-  const selected = useStore(props.store, props.selector, { equal: shallow })
+  const selected = useStore(props.store, props.selector, shallow)
   return typeof props.children === 'function'
     ? props.children(selected)
     : props.children
@@ -136,7 +136,7 @@ export function useCalendar<
     ;(calendar as { ensureRangeLoaded?: () => void }).ensureRangeLoaded?.()
   }, [calendar])
 
-  const state = useStore(calendar.store, selector, { equal: shallow })
+  const state = useStore(calendar.store, selector, shallow)
 
   return useMemo(
     () =>

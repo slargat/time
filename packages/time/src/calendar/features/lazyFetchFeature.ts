@@ -101,14 +101,16 @@ export const lazyFetchFeature: CalendarFeature = {
       return `${currentPeriod.toString({ calendarName: 'never' })}|${viewMode.unit}|${viewMode.value}`
     }
     let prevNavKey = navKey()
-    const unsubscribe = calendar.store.subscribe(() => {
+    // @tanstack/store v0.11 subscribe() returns a Subscription ({ unsubscribe }),
+    // not a bare function as in v0.8 — normalize to the () => void destroy expects.
+    const subscription = calendar.store.subscribe(() => {
       const key = navKey()
       if (key === prevNavKey) return
       prevNavKey = key
       calendar.ensureRangeLoaded()
     })
     ;(calendar as { _lazyFetchUnsubscribe?: () => void })._lazyFetchUnsubscribe =
-      unsubscribe
+      () => subscription.unsubscribe()
   },
 
   destroy: (calendar) => {

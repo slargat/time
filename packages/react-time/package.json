@@ -47,7 +47,7 @@
     "src"
   ],
   "dependencies": {
-    "@tanstack/react-store": "^0.8.0",
+    "@tanstack/react-store": "^0.11.0",
     "@tanstack/time": "workspace:*"
   },
   "devDependencies": {
