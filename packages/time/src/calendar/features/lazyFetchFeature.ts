@@ -112,8 +112,9 @@ export const lazyFetchFeature: CalendarFeature = {
   },
 
   destroy: (calendar) => {
-    ;(
-      calendar as { _lazyFetchUnsubscribe?: () => void }
-    )._lazyFetchUnsubscribe?.()
+    const unsubscribe = (
+      calendar as { _lazyFetchUnsubscribe?: unknown }
+    )._lazyFetchUnsubscribe
+    if (typeof unsubscribe === 'function') unsubscribe()
   },
 }
