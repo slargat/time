@@ -40,6 +40,7 @@ export const resizeFeature: CalendarFeature = {
       _normalizeEvent: (event: TEvent) => TEvent
       _bumpEvents: () => void
       _pushHistory?: () => void
+      _propagateDependents?: (eventId: string) => void
     }
 
     const commitUpdate = (
@@ -53,6 +54,7 @@ export const resizeFeature: CalendarFeature = {
         id,
         internals._normalizeEvent({ ...existing, ...updates } as TEvent),
       )
+      internals._propagateDependents?.(id)
       internals._bumpEvents()
     }
 

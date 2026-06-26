@@ -7,6 +7,7 @@ import { resizeFeature } from '../features/resizeFeature'
 import { timelineFeature } from '../features/timelineFeature'
 import { recurrenceFeature } from '../features/recurrenceFeature'
 import { lazyFetchFeature } from '../features/lazyFetchFeature'
+import { dependenciesFeature } from '../features/dependenciesFeature'
 import { CalendarCore } from '../calendar'
 import type { Day, Event, Resource } from '../types'
 
@@ -332,6 +333,61 @@ describe('feature composition', () => {
     expect(cal.getEvents().map((e) => e.id).sort()).toEqual(
       core.getEvents().map((e) => e.id).sort(),
     )
+  })
+
+  it('matches CalendarCore for dependency cascade + validation', async () => {
+    const events: Array<Event> = [
+      { id: 'A', title: 'A', start: '2024-01-10T09:00:00', end: '2024-01-10T10:00:00' },
+      {
+        id: 'B',
+        title: 'B',
+        start: '2024-01-10T10:00:00',
+        end: '2024-01-10T11:00:00',
+        dependsOn: [{ id: 'A', type: 'FS' }],
+      },
+      { id: 'C', title: 'C', start: '2024-01-10T09:00:00', end: '2024-01-10T10:00:00' },
+      { id: 'D', title: 'D', start: '2024-01-10T09:00:00', end: '2024-01-10T10:00:00' },
+    ]
+    const opts = {
+      viewMode: { value: 1, unit: 'month' as const },
+      events,
+      timeZone: 'UTC',
+    }
+    const core = new CalendarCore(opts)
+    const cal = constructCalendar({
+      ...opts,
+      features: { eventsFeature, eventCrudFeature, dependenciesFeature },
+    })
+
+    const byId = (c: { getEvents: () => Array<Event> }) =>
+      Object.fromEntries(c.getEvents().map((e) => [e.id, `${e.start}|${e.end}`]))
+
+    // validation parity
+    expect(
+      cal.validateEventDependencies(
+        { id: 'B', title: 'B', start: '2024-01-10T09:30:00', end: '2024-01-10T10:30:00' },
+        [{ id: 'A', type: 'FS' }],
+      ),
+    ).toEqual(
+      core.validateEventDependencies(
+        { id: 'B', title: 'B', start: '2024-01-10T09:30:00', end: '2024-01-10T10:30:00' },
+        [{ id: 'A', type: 'FS' }],
+      ),
+    )
+    expect(cal.validateMove('A', '2024-01-10T12:00:00', '2024-01-10T13:00:00')).toEqual(
+      core.validateMove('A', '2024-01-10T12:00:00', '2024-01-10T13:00:00'),
+    )
+
+    // move A later → B (FS) cascades forward, identically
+    await core.editEvent('A', { start: '2024-01-10T11:00:00', end: '2024-01-10T12:00:00' })
+    await cal.editEvent('A', { start: '2024-01-10T11:00:00', end: '2024-01-10T12:00:00' })
+    expect(byId(cal)).toEqual(byId(core))
+
+    // createDependency C→D reschedules D, identically
+    expect(cal.createDependency('C', 'D', 'FS')).toEqual(
+      core.createDependency('C', 'D', 'FS'),
+    )
+    expect(byId(cal)).toEqual(byId(core))
   })
 
   it('crud mutates the shared map and feeds history undo/redo', async () => {

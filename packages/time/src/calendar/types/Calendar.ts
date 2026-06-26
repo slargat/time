@@ -21,6 +21,7 @@ import type {
 import type { Calendar_Crud } from '../features/eventCrudFeature.types'
 import type { Calendar_Timeline } from '../features/timelineFeature.types'
 import type { Calendar_Recurrence } from '../features/recurrenceFeature.types'
+import type { Calendar_Dependencies } from '../features/dependenciesFeature.types'
 import type { Calendar_LazyFetch } from '../features/lazyFetchFeature.types'
 import type { Calendar_History } from '../features/historyFeature.types'
 import type {
@@ -131,6 +132,7 @@ export interface Calendar_FeatureMap<
   resizeFeature: Calendar_Resize<TResource, TEvent>
   timelineFeature: Calendar_Timeline<TResource, TEvent>
   recurrenceFeature: Calendar_Recurrence<TResource, TEvent>
+  dependenciesFeature: Calendar_Dependencies<TResource>
   lazyFetchFeature: Calendar_LazyFetch
   historyFeature: Calendar_History
 }

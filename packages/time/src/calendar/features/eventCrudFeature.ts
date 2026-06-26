@@ -27,6 +27,7 @@ export const eventCrudFeature: CalendarFeature = {
       _normalizeEvent: (event: TEvent) => TEvent
       _bumpEvents: () => void
       _pushHistory?: () => void
+      _propagateDependents?: (eventId: string) => void
     }
 
     calendar.addEvent = (event: TEvent) => {
@@ -47,6 +48,7 @@ export const eventCrudFeature: CalendarFeature = {
         eventId,
         internals._normalizeEvent({ ...existing, ...updates } as TEvent),
       )
+      internals._propagateDependents?.(eventId)
       internals._bumpEvents()
       return Promise.resolve({ success: true })
     }
