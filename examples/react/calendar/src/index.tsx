@@ -14,7 +14,6 @@ import {
 } from '@tanstack/react-time'
 import ReactDOM from 'react-dom/client'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useStore } from '@tanstack/react-store'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { timeDevtoolsPlugin } from '@tanstack/react-time-devtools'
 import { useInfiniteScroll } from './lib/useInfiniteScroll'
@@ -1184,16 +1183,19 @@ function CalendarView() {
     },
   })
 
-  // Reactive state lives on the store. `useCalendar` doesn't subscribe — read
-  // it with bare `useStore` (pass a selector to subscribe selectively). `days`
-  // is memoized so its identity is stable across renders (getDays() builds fresh).
-  const state = useStore(calendar.store)
+  // `calendar.state` is the subscribed state (whole state here — no selector
+  // was passed to useCalendar). For finer control, pass a selector to
+  // useCalendar, use <calendar.Subscribe> lower in the tree, or read
+  // useStore(calendar.store, selector) directly. `days` is memoized off the
+  // relevant state slices so its identity is stable (getDays() builds fresh).
+  const state = calendar.state
   const viewMode = state.viewMode
   const currentPeriod = state.currentPeriod.toString({ calendarName: 'never' })
   const isPending = state.isPending
+  // calendar identity churns with state; depend on the slices that affect days.
   const days = useMemo(
     () => calendar.getDays(),
-    [calendar, state.currentPeriod, state.viewMode, state.eventsVersion],
+    [state.currentPeriod, state.viewMode, state.eventsVersion],
   )
 
   const dayNames = calendar.getDaysNames('short')
@@ -1953,11 +1955,16 @@ function CalendarView() {
         </div>
       )}
 
-      {isPending && (
-        <div className="fixed top-5 right-5 px-5 py-3 bg-card border border-border text-foreground rounded-md text-sm font-medium">
-          Loading...
-        </div>
-      )}
+      {/* Targeted subscription: this only re-renders when `isPending` flips. */}
+      <calendar.Subscribe selector={(s) => s.isPending}>
+        {(pending) =>
+          pending ? (
+            <div className="fixed top-5 right-5 px-5 py-3 bg-card border border-border text-foreground rounded-md text-sm font-medium">
+              Loading...
+            </div>
+          ) : null
+        }
+      </calendar.Subscribe>
 
       <ScopeChoiceModal
         event={scopeChoiceEvent}

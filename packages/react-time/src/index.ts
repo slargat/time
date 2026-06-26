@@ -1,5 +1,10 @@
 export { useCalendar } from './useCalendar'
-export type { ResizeState } from './useCalendar'
+export type {
+  ResizeState,
+  ReactCalendar,
+  CalendarSubscribe,
+  CalendarStateSelector,
+} from './useCalendar'
 
 // Feature-composition API re-exported for convenience.
 export {
