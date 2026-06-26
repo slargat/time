@@ -102,6 +102,8 @@ export interface Calendar_Core<
 > {
   store: Store<CalendarStore>
   options: CalendarOptions<TFeatures, TResource, TEvent>
+  /** Tear down every feature (resize DOM listeners, timers). */
+  destroy: () => void
   goToNextPeriod: () => void
   goToPreviousPeriod: () => void
   goToCurrentPeriod: () => void

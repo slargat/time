@@ -105,5 +105,11 @@ export interface CalendarFeature {
     calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
   ) => void
   /** Tear down listeners/timers when the calendar is destroyed. */
-  destroy?: (calendar: Calendar_Internal<any, any, any>) => void
+  destroy?: <
+    TFeatures extends CalendarFeatures,
+    TResource extends Resource,
+    TEvent extends Event<TResource>,
+  >(
+    calendar: Calendar_Internal<TFeatures, TResource, TEvent>,
+  ) => void
 }

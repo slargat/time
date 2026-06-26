@@ -43,5 +43,9 @@ export function constructCalendar<
     feature.assignDayPrototype?.(calendar._dayPrototype, calendar)
   }
 
+  calendar.destroy = () => {
+    for (const feature of featureList) feature.destroy?.(calendar)
+  }
+
   return calendar as unknown as Calendar<TFeatures, TResource, TEvent>
 }
