@@ -1,7 +1,15 @@
 import {
   calculateGhostPreviewStyle,
   calculateSegmentResizePreview,
+  dependenciesFeature,
+  eventCrudFeature,
+  eventsFeature,
   formatEventTimeRange,
+  historyFeature,
+  lazyFetchFeature,
+  recurrenceFeature,
+  resizeFeature,
+  timelineFeature,
   useCalendar,
 } from '@tanstack/react-time'
 import ReactDOM from 'react-dom/client'
@@ -10,7 +18,6 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { timeDevtoolsPlugin } from '@tanstack/react-time-devtools'
 import { useInfiniteScroll } from './lib/useInfiniteScroll'
 import type {
-  Day,
   Event,
   EventDateTimeInput,
   RecurrenceEditScope,
@@ -39,6 +46,22 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 import './index.css'
+
+/** The feature set this demo composes. */
+const calendarFeatures = {
+  eventsFeature,
+  eventCrudFeature,
+  resizeFeature,
+  timelineFeature,
+  recurrenceFeature,
+  dependenciesFeature,
+  lazyFetchFeature,
+  historyFeature,
+}
+type CalendarInstance = ReturnType<
+  typeof useCalendar<typeof calendarFeatures, Resource, Event<Resource>>
+>
+type CalendarDay = ReturnType<CalendarInstance['getDays']>[number]
 
 function formatDateToISO(date: Date): string {
   const year = date.getFullYear()
@@ -596,8 +619,8 @@ function ScheduleView({
   rightSentinelRef,
   periodDayCount,
 }: {
-  calendar: ReturnType<typeof useCalendar<Resource, Event<Resource>>>
-  days: Array<Day<Resource, Event<Resource>>>
+  calendar: CalendarInstance
+  days: Array<CalendarDay>
   resources: Array<Resource>
   onEventClick: (event: Event<Resource>, scope?: RecurrenceEditScope) => void
   scrollRef: React.RefObject<HTMLDivElement | null>
@@ -606,12 +629,8 @@ function ScheduleView({
   periodDayCount: number
 }) {
   const timeSlots = calendar.getTimeSlots()
-  const {
-    resizeState,
-    getResizeHandleProps,
-    getDayColumnProps,
-    getUnavailableRanges,
-  } = calendar
+  const resizeState = calendar.getResizeState()
+  const getUnavailableRanges = calendar.getUnavailableRanges
 
   const maxAllDay = days.reduce((m, d) => Math.max(m, d.allDayEvents.length), 0)
   const allDayRowHeight = maxAllDay > 0 ? maxAllDay * 24 + 8 : 28
@@ -685,7 +704,7 @@ function ScheduleView({
                   <div
                     key={day.date.toString()}
                     className="border-r border-neutral-800 last:border-r-0"
-                    {...getDayColumnProps(dayDate)}
+                    {...day.getColumnProps()}
                   >
                     <div className="h-12 border-b border-neutral-800 bg-neutral-950 px-3 py-2 text-center">
                       <div className="text-sm font-semibold text-neutral-200">
@@ -825,16 +844,10 @@ function ScheduleView({
                                 <ResizeHandle
                                   edge="top"
                                   floating={floatHandles}
-                                  {...getResizeHandleProps(
-                                    event.id,
-                                    'top',
-                                    originalStart,
-                                    originalEnd,
-                                    {
-                                      occurrenceStart:
-                                        event._occurrenceOriginalStart,
-                                    },
-                                  )}
+                                  {...event.getResizeHandleProps('top', {
+                                    occurrenceStart:
+                                      event._occurrenceOriginalStart,
+                                  })}
                                 />
                               )}
                               <div className="font-semibold pt-1 flex items-center gap-1.5">
@@ -874,16 +887,10 @@ function ScheduleView({
                                 <ResizeHandle
                                   edge="bottom"
                                   floating={floatHandles}
-                                  {...getResizeHandleProps(
-                                    event.id,
-                                    'bottom',
-                                    originalStart,
-                                    originalEnd,
-                                    {
-                                      occurrenceStart:
-                                        event._occurrenceOriginalStart,
-                                    },
-                                  )}
+                                  {...event.getResizeHandleProps('bottom', {
+                                    occurrenceStart:
+                                      event._occurrenceOriginalStart,
+                                  })}
                                 />
                               )}
                             </ContextMenuTrigger>
@@ -1127,11 +1134,12 @@ function CalendarView() {
 
   const [resizeError, setResizeError] = useState<ResizeError | null>(null)
 
-  const calendar = useCalendar<Resource, Event<Resource>>({
+  const calendar = useCalendar({
     viewMode: { value: 1, unit: 'month' },
-    events: [],
+    events: [] as Array<Event<Resource>>,
     resources,
     timeZone: 'UTC',
+    features: calendarFeatures,
     fetchEvents: async ({ start, end }) => {
       await new Promise((resolve) => setTimeout(resolve, 300))
 
@@ -1175,30 +1183,40 @@ function CalendarView() {
     },
   })
 
+  // Reactive state lives on the store; the hook re-renders on change. `days` is
+  // memoized so its identity is stable across renders (getDays() builds fresh).
+  const state = calendar.store.state
+  const viewMode = state.viewMode
+  const currentPeriod = state.currentPeriod.toString({ calendarName: 'never' })
+  const isPending = state.isPending
+  const days = useMemo(
+    () => calendar.getDays(),
+    [calendar, state.currentPeriod, state.viewMode, state.eventsVersion],
+  )
+
   const dayNames = calendar.getDaysNames('short')
 
-  const isScheduleView =
-    calendar.viewMode.unit === 'week' || calendar.viewMode.unit === 'day'
-  const scheduleDays: Array<Day<Resource, Event<Resource>>> = isScheduleView
-    ? calendar.viewMode.unit === 'day'
-      ? calendar.days.filter((day) => {
-          const currentDateStr = calendar.currentPeriod.split('[')[0]
+  const isScheduleView = viewMode.unit === 'week' || viewMode.unit === 'day'
+  const scheduleDays: Array<CalendarDay> = isScheduleView
+    ? viewMode.unit === 'day'
+      ? days.filter((day) => {
+          const currentDateStr = currentPeriod.split('[')[0]
           return day.date.toString({ calendarName: 'never' }) === currentDateStr
         })
-      : calendar.days
+      : days
     : []
 
   const monthScrollRef = useRef<HTMLDivElement>(null)
   const monthBufferRef = useRef<{ start: string; end: string } | null>(null)
-  if (monthBufferRef.current === null && calendar.days.length > 0) {
+  if (monthBufferRef.current === null && days.length > 0) {
     monthBufferRef.current = {
-      start: calendar.days[0].isoDate,
-      end: calendar.days[calendar.days.length - 1].isoDate,
+      start: days[0].isoDate,
+      end: days[days.length - 1].isoDate,
     }
   }
 
   const navDirectionRef = useRef<'none' | 'forward' | 'backward'>('none')
-  const prevPeriodRef = useRef(calendar.currentPeriod)
+  const prevPeriodRef = useRef(currentPeriod)
   const prevScrollHeightRef = useRef(0)
   const needsScrollAdjRef = useRef(false)
   const [bufferVersion, setBufferVersion] = useState(0)
@@ -1210,7 +1228,7 @@ function CalendarView() {
 
   useEffect(() => {
     setVisibleMonth(calendar.formatCurrentPeriod())
-  }, [calendar.currentPeriod])
+  }, [currentPeriod])
 
   useEffect(() => {
     const el = monthScrollRef.current
@@ -1248,15 +1266,15 @@ function CalendarView() {
 
   useEffect(() => {
     if (navDirectionRef.current === 'none') return
-    if (calendar.currentPeriod === prevPeriodRef.current) return
-    prevPeriodRef.current = calendar.currentPeriod
+    if (currentPeriod === prevPeriodRef.current) return
+    prevPeriodRef.current = currentPeriod
 
     const direction = navDirectionRef.current
     navDirectionRef.current = 'none'
 
-    if (calendar.days.length === 0 || !monthBufferRef.current) return
-    const newStart = calendar.days[0].isoDate
-    const newEnd = calendar.days[calendar.days.length - 1].isoDate
+    if (days.length === 0 || !monthBufferRef.current) return
+    const newStart = days[0].isoDate
+    const newEnd = days[days.length - 1].isoDate
     monthBufferRef.current = {
       start:
         newStart < monthBufferRef.current.start
@@ -1274,7 +1292,7 @@ function CalendarView() {
     }
 
     setBufferVersion((v) => v + 1)
-  }, [calendar.currentPeriod, calendar.days])
+  }, [currentPeriod, days])
 
   useLayoutEffect(() => {
     if (!needsScrollAdjRef.current) return
@@ -1287,23 +1305,18 @@ function CalendarView() {
 
   const bufferedWeekGroups = useMemo(() => {
     void bufferVersion
-    void calendar.days
+    void days
     if (!monthBufferRef.current) return []
-    const days = calendar.getDaysInRange(
+    const rangeDays = calendar.getDaysInRange(
       monthBufferRef.current.start,
       monthBufferRef.current.end,
     )
     return calendar.groupDaysBy({
-      days,
+      days: rangeDays,
       unit: 'week',
       fillMissingDays: true,
     })
-  }, [
-    bufferVersion,
-    calendar.days,
-    calendar.getDaysInRange,
-    calendar.groupDaysBy,
-  ])
+  }, [bufferVersion, days, calendar])
 
   const { startSentinelRef: monthTopRef, endSentinelRef: monthBottomRef } =
     useInfiniteScroll({
@@ -1313,12 +1326,12 @@ function CalendarView() {
       onReachStart: () => {
         const el = monthScrollRef.current
         if (!el || el.scrollHeight <= el.clientHeight) return
-        if (!calendar.canGoPreviousPeriod() || calendar.isPending) return
+        if (!calendar.canGoPreviousPeriod() || isPending) return
         navDirectionRef.current = 'backward'
         calendar.goToPreviousPeriod()
       },
       onReachEnd: () => {
-        if (!calendar.canGoNextPeriod() || calendar.isPending) return
+        if (!calendar.canGoNextPeriod() || isPending) return
         navDirectionRef.current = 'forward'
         calendar.goToNextPeriod()
       },
@@ -1330,21 +1343,21 @@ function CalendarView() {
   const scheduleNavDirectionRef = useRef<'none' | 'forward' | 'backward'>(
     'none',
   )
-  const prevSchedulePeriodRef = useRef(calendar.currentPeriod)
+  const prevSchedulePeriodRef = useRef(currentPeriod)
   const prevScheduleScrollWidthRef = useRef(0)
   const needsScheduleScrollAdjRef = useRef(false)
   const [scheduleBufferVersion, setScheduleBufferVersion] = useState(0)
-  const prevViewModeUnitRef = useRef(calendar.viewMode.unit)
+  const prevViewModeUnitRef = useRef(viewMode.unit)
 
-  if (prevViewModeUnitRef.current !== calendar.viewMode.unit) {
-    prevViewModeUnitRef.current = calendar.viewMode.unit
+  if (prevViewModeUnitRef.current !== viewMode.unit) {
+    prevViewModeUnitRef.current = viewMode.unit
     scheduleBufferRef.current = null
-    prevSchedulePeriodRef.current = calendar.currentPeriod
+    prevSchedulePeriodRef.current = currentPeriod
     monthBufferRef.current =
-      calendar.days.length > 0
+      days.length > 0
         ? {
-            start: calendar.days[0].isoDate,
-            end: calendar.days[calendar.days.length - 1].isoDate,
+            start: days[0].isoDate,
+            end: days[days.length - 1].isoDate,
           }
         : null
   }
@@ -1362,18 +1375,18 @@ function CalendarView() {
 
   useEffect(() => {
     if (!isScheduleView) return
-    if (calendar.currentPeriod === prevSchedulePeriodRef.current) return
-    prevSchedulePeriodRef.current = calendar.currentPeriod
+    if (currentPeriod === prevSchedulePeriodRef.current) return
+    prevSchedulePeriodRef.current = currentPeriod
 
-    let currentDays: typeof calendar.days
-    if (calendar.viewMode.unit === 'day') {
-      const currentDateStr = calendar.currentPeriod.split('[')[0]
-      currentDays = calendar.days.filter(
+    let currentDays: typeof days
+    if (viewMode.unit === 'day') {
+      const currentDateStr = currentPeriod.split('[')[0]
+      currentDays = days.filter(
         (day) =>
           day.date.toString({ calendarName: 'never' }) === currentDateStr,
       )
     } else {
-      currentDays = calendar.days
+      currentDays = days
     }
 
     if (currentDays.length === 0) return
@@ -1402,10 +1415,10 @@ function CalendarView() {
 
     setScheduleBufferVersion((v) => v + 1)
   }, [
-    calendar.currentPeriod,
+    currentPeriod,
     isScheduleView,
-    calendar.viewMode.unit,
-    calendar.days,
+    viewMode.unit,
+    days,
   ])
 
   useLayoutEffect(() => {
@@ -1419,21 +1432,16 @@ function CalendarView() {
 
   const bufferedScheduleDays = useMemo(() => {
     void scheduleBufferVersion
-    void calendar.days
+    void days
     if (!scheduleBufferRef.current) return scheduleDays
     return calendar.getDaysInRange(
       scheduleBufferRef.current.start,
       scheduleBufferRef.current.end,
     )
-  }, [
-    scheduleBufferVersion,
-    scheduleDays,
-    calendar.days,
-    calendar.getDaysInRange,
-  ])
+  }, [scheduleBufferVersion, scheduleDays, days, calendar])
 
   const periodDayCount =
-    calendar.viewMode.unit === 'day' ? 1 : scheduleDays.length || 7
+    viewMode.unit === 'day' ? 1 : scheduleDays.length || 7
 
   const {
     startSentinelRef: scheduleLeftRef,
@@ -1445,12 +1453,12 @@ function CalendarView() {
     onReachStart: () => {
       const el = scheduleScrollRef.current
       if (!el || el.scrollWidth <= el.clientWidth) return
-      if (!calendar.canGoPreviousPeriod() || calendar.isPending) return
+      if (!calendar.canGoPreviousPeriod() || isPending) return
       scheduleNavDirectionRef.current = 'backward'
       calendar.goToPreviousPeriod()
     },
     onReachEnd: () => {
-      if (!calendar.canGoNextPeriod() || calendar.isPending) return
+      if (!calendar.canGoNextPeriod() || isPending) return
       scheduleNavDirectionRef.current = 'forward'
       calendar.goToNextPeriod()
     },
@@ -1608,7 +1616,7 @@ function CalendarView() {
         <div className="flex gap-3 items-center mb-4 flex-wrap">
           <Button
             onClick={calendar.goToPreviousPeriod}
-            disabled={!calendar.canGoPreviousPeriod() || calendar.isPending}
+            disabled={!calendar.canGoPreviousPeriod() || isPending}
             variant="outline"
           >
             ← Previous
@@ -1616,7 +1624,7 @@ function CalendarView() {
 
           <Button
             onClick={calendar.goToCurrentPeriod}
-            disabled={calendar.isPending}
+            disabled={isPending}
             variant="outline"
           >
             Today
@@ -1624,7 +1632,7 @@ function CalendarView() {
 
           <Button
             onClick={calendar.goToNextPeriod}
-            disabled={!calendar.canGoNextPeriod() || calendar.isPending}
+            disabled={!calendar.canGoNextPeriod() || isPending}
             variant="outline"
           >
             Next →
@@ -1655,7 +1663,7 @@ function CalendarView() {
                 calendar.changeViewMode({ value: 1, unit: 'month' })
               }
               variant={
-                calendar.viewMode.unit === 'month' ? 'secondary' : 'outline'
+                viewMode.unit === 'month' ? 'secondary' : 'outline'
               }
               size="sm"
             >
@@ -1666,7 +1674,7 @@ function CalendarView() {
                 calendar.changeViewMode({ value: 1, unit: 'week' })
               }
               variant={
-                calendar.viewMode.unit === 'week' ? 'secondary' : 'outline'
+                viewMode.unit === 'week' ? 'secondary' : 'outline'
               }
               size="sm"
             >
@@ -1675,7 +1683,7 @@ function CalendarView() {
             <Button
               onClick={() => calendar.changeViewMode({ value: 1, unit: 'day' })}
               variant={
-                calendar.viewMode.unit === 'day' ? 'secondary' : 'outline'
+                viewMode.unit === 'day' ? 'secondary' : 'outline'
               }
               size="sm"
             >
@@ -1733,7 +1741,9 @@ function CalendarView() {
       {isScheduleView ? (
         <ScheduleView
           calendar={calendar}
-          days={bufferedScheduleDays}
+          // getDaysInRange/groupDaysBy return DayNodes at runtime; their lib
+          // types still say Day (node-typing them is a follow-up).
+          days={bufferedScheduleDays as Array<CalendarDay>}
           resources={resources}
           onEventClick={handleEventClick}
           scrollRef={scheduleScrollRef}
@@ -1778,11 +1788,8 @@ function CalendarView() {
                 gridTemplateColumns: `repeat(${dayNames.length}, minmax(0, 1fr))`,
               }}
             >
-              {bufferedWeekGroups.map(
-                (
-                  week: Array<Day<Resource, Event<Resource>> | null>,
-                  weekIndex: number,
-                ) => {
+              {(bufferedWeekGroups as Array<Array<CalendarDay | null>>).map(
+                (week, weekIndex: number) => {
                   const weekKey =
                     week.find((d) => d !== null)?.isoDate ?? `w-${weekIndex}`
                   return week.map((day, dayIndex) => {
@@ -1944,7 +1951,7 @@ function CalendarView() {
         </div>
       )}
 
-      {calendar.isPending && (
+      {isPending && (
         <div className="fixed top-5 right-5 px-5 py-3 bg-card border border-border text-foreground rounded-md text-sm font-medium">
           Loading...
         </div>
