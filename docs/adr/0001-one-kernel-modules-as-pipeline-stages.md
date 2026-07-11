@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted
+accepted — amended by [ADR 0007](./0007-time-core-v9-feature-composition-over-ordered-pipelines.md)
+(the ordered pipelines stand; ADR 0007 clarifies how they coexist with v9-style feature
+composition in `@tanstack/time-core`). Note: "module" is now called **feature** (see CONTEXT.md).
 
 ## Context
 

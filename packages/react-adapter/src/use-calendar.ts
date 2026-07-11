@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import { shallow, useSelector } from '@tanstack/react-store'
-import { constructCalendar } from '@tanstack/time'
+import { useSelector } from '@tanstack/react-store'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { constructCalendar } from '@tanstack/time-core'
+import { shallowSelected } from './compare'
 import type { ReactNode } from 'react'
 import type {
   Calendar,
@@ -9,9 +10,7 @@ import type {
   CalendarStore,
   Event,
   Resource,
-} from '@tanstack/time'
-
-export type { ResizeState } from '@tanstack/time'
+} from '@tanstack/time-core'
 
 /** A selector over the calendar's reactive state. */
 export type CalendarStateSelector<TSelected> = (
@@ -47,7 +46,7 @@ function CalendarSubscribeComponent(props: {
   children: ((state: unknown) => ReactNode) | ReactNode
 }): ReactNode {
   const selected = useSelector(props.store, props.selector, {
-    compare: (a, b) => shallow(a, b),
+    compare: shallowSelected,
   })
   return typeof props.children === 'function'
     ? props.children(selected)
@@ -71,7 +70,7 @@ export type ReactCalendar<
 }
 
 /**
- * React binding for the feature-composed calendar.
+ * React binding for the feature-composed `@tanstack/time-core` calendar.
  *
  * The instance is built once and stable; every method/node-prototype is created
  * at construction (no per-render `useCallback`s). The component re-renders when
@@ -80,18 +79,6 @@ export type ReactCalendar<
  * `calendar.state`. For targeted subscriptions deeper in the tree use
  * `<calendar.Subscribe selector={…}>`; for a bare escape hatch use
  * `useStore(calendar.store, selector)` from `@tanstack/react-store`.
- *
- * @example
- * const calendar = useCalendar({ viewMode, events, features })
- * calendar.state.viewMode
- *
- * // selective at the hook:
- * const calendar = useCalendar(options, (s) => ({ viewMode: s.viewMode }))
- *
- * // selective deeper in the tree:
- * <calendar.Subscribe selector={(s) => s.isPending}>
- *   {(isPending) => (isPending ? <Spinner /> : null)}
- * </calendar.Subscribe>
  */
 export function useCalendar<
   TFeatures extends CalendarFeatures,
@@ -122,11 +109,20 @@ export function useCalendar<
     return instance
   })
 
+  // Sync options + reflect controlled `options.state` slices into the atom graph
+  // (v9 `table.setOptions`), so state driven from a `useState` stays in sync.
+  // Done in a layout effect (commit phase) rather than during render: writing
+  // the atoms synchronously notifies subscribers, which during render would be a
+  // setState-in-render. Layout timing keeps it pre-paint, so no flicker.
+  useLayoutEffect(() => {
+    calendar.setOptions((prev) => ({ ...prev, ...options }))
+  })
+
   // Tear down feature listeners on unmount.
   useEffect(() => () => calendar.destroy(), [calendar])
 
   // Keep the resize controller's options in sync (when resizeFeature is on).
-  const resizeOptions = options.resize
+  const resizeOptions = (options as { resize?: unknown }).resize
   useEffect(() => {
     const controller = (
       calendar as {
@@ -144,7 +140,7 @@ export function useCalendar<
   }, [calendar])
 
   const state = useSelector(calendar.store, selector, {
-    compare: (a, b) => shallow(a, b),
+    compare: shallowSelected,
   })
 
   return useMemo(

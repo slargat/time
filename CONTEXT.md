@@ -1,14 +1,14 @@
 # TanStack Time
 
 A comprehensive, Temporal-native library for date/time problems. Two layers: a set of
-pure date/time functions, and a stateful core extended by feature modules (calendar,
-scheduling, undo/redo, …) in the style of TanStack Table v9 / AG Grid modules.
+pure date/time functions, and a stateful core extended by opt-in features (calendar,
+scheduling, undo/redo, …) in the style of TanStack Table v9 `table-core`.
 
 ## Language
 
 **Date Primitive**:
 A pure, stateless date/time function (e.g. `add`, `startOf`, `format`). Operates on a
-single value, holds no state, belongs to no module. The "alternative to date-fns" layer.
+single value, holds no state, belongs to no feature. The "alternative to date-fns" layer.
 Returns a native `Date` for instant-bearing results.
 _Avoid_: helper, util (too vague)
 
@@ -41,14 +41,45 @@ domain-specific (no availability, recurrence, dependencies, drag, or undo) lives
 Analogous to the one TanStack Table core (table instance + row model).
 _Avoid_: core, engine (informal synonyms; "kernel" is canonical)
 
-**Module**:
-A unit of opt-in feature behavior that extends the kernel (recurrence, availability,
-dependencies, drag-resize, undo/redo, scheduling). Modeled on TanStack Table v9 / AG Grid
-modules so unused features tree-shake away. A module _adds capability and state_.
-_Avoid_: plugin, feature, extension (pick one canonical term — see open question)
+**Feature**:
+A unit of opt-in behavior that extends the kernel (recurrence, availability, dependencies,
+drag-resize, undo/redo, scheduling, and each **View**). Passed in the `features: {}` object
+to `constructCalendar`; unused features tree-shake away. A feature _adds capability and state_
+and attaches via the construction hooks (`constructCalendarAPIs` / `constructDayAPIs` /
+`constructEventAPIs`). Canonical term, chosen to mirror TanStack Table v9 `table-core` (which
+this kernel structurally follows).
+_Avoid_: module, plugin, extension (all retired — "feature" is canonical)
+
+**View**:
+A **Feature** that arranges the core entities into a view-specific shape for one `viewMode`
+(month, week/day time-grid, timeline, agenda). It carries a `view: { matches, build }`
+descriptor: `matches(viewMode)` selects it as active, `build` produces its **View Model**.
+Only the active view is built. Views are opt-in like any feature, so a month-only calendar
+never bundles timeline code.
+_Avoid_: layout, renderer (a View produces data, not DOM)
+
+**View Model**:
+The arranged, read-only output of the active View's `build` — e.g. month → Weeks→Days→Events,
+time-grid → Days→TimeSlots + positioned Events. Exposed via `getView()` as a `viewMode`-
+discriminated union of the registered views (narrow with `switch`). Distinct from
+**Projection**: the projection is the kernel's event-to-range derivation; the view model is a
+View's framing of it.
+_Avoid_: view state, arrangement (informal)
+
+**Entity**:
+A core node type the kernel constructs and features extend through `construct<Entity>APIs`:
+**Calendar** (the instance), **Day**, and **Event** (occurrence/segment). The calendar
+analogue of v9's table/row/cell. Only these three are feature-extensible.
+_Avoid_: node (informal for the same thing)
+
+**Output Shape**:
+A view-specific data structure produced *inside* a View Model — **Week**, **TimeSlot**,
+**Lane**, **Group**. Unlike an **Entity**, an output shape is not feature-extensible (no
+construct hooks); it exists only within the View that emits it.
+_Avoid_: entity (output shapes are explicitly not entities)
 
 **Product**:
-A user-facing bundle = the kernel + a preset of modules + a chosen view. _Calendar_,
+A user-facing bundle = the kernel + a preset of features + a chosen view. _Calendar_,
 _Scheduler_ (Calendly-style), and _Timeline/Gantt_ are products, **not** separate kernels.
 A product is a convenience preset, not a new core.
 _Avoid_: app, preset (informal)
@@ -78,7 +109,7 @@ _Avoid_: window, range (overloaded), current view
 
 **Projection**:
 The derived, read-only result the kernel computes from the event collection for the current
-viewport (events mapped onto the visible range). Views and modules transform the projection;
+viewport (events mapped onto the visible range). Views and features transform the projection;
 they never mutate the event collection through it.
 _Avoid_: render, output, derived state
 
@@ -146,8 +177,3 @@ Scheduler = kernel + availability + scheduling (free-slot projection + `book()`)
 slot-picker view. Timeline/Gantt = kernel + dependencies (events that push each other) over
 a timeline view.
 
-**View** (a.k.a. Renderer):
-A way of presenting a kernel's projection (day, week, month, agenda, timeline strip). A
-view _reads_ the projection; it does not add capability. This is the line that separates a
-view from a module.
-_Avoid_: layout, display (too vague)

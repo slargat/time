@@ -18,7 +18,11 @@ allowBuilds:
   msw: false
 
 overrides:
+  # base-ui pulls reselect@^5.1.1; 5.1.1 lost provenance attestation (trips
+  # trustPolicy: no-downgrade). Pin up to 5.2.0, which is provenance-attested.
+  reselect: '5.2.0'
   '@tanstack/time': 'workspace:*'
+  '@tanstack/time-core': 'workspace:*'
   '@tanstack/time-devtools': 'workspace:*'
   '@tanstack/react-time': 'workspace:*'
   '@tanstack/react-time-devtools': 'workspace:*'
